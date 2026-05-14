@@ -1,76 +1,78 @@
 # Cost Intelligence Agent — Status
 
-## What's Deployed & Working
+## ✅ WORKING END-TO-END
+
+### What's Live
 
 | Component | Status | Details |
 |---|---|---|
-| AgentCore Runtime (brain) | ✅ Live | `finops_runtime-f25c6ZCRzH` |
-| Billing MCP (Cost Explorer, Budgets) | ✅ Live | Via Gateway |
+| AgentCore Runtime (brain) | ✅ Live | `finops_runtime-f25c6ZCRzH` with all tools |
+| Billing MCP (Cost Explorer, Budgets) | ✅ Live | Via Gateway (28 tools) |
 | Pricing MCP | ✅ Live | Via Gateway |
+| **CloudWatch tools** (Strands) | ✅ Live | get_alarm_status, get_bedrock_usage, get_metric_history |
+| **CloudTrail tools** (Strands) | ✅ Live | get_recent_changes, get_recent_deployments |
+| **Agent Economics** (Strands) | ✅ Live | get_agent_costs, detect_agent_loops |
+| **Pattern Memory** (Strands) | ✅ Live | save_pattern, find_similar_patterns |
 | AgentCore Memory (30-day) | ✅ Live | `finops_memory-wGlPmPF0v3` |
-| AgentCore Gateway | ✅ Live | `finops-gateway-c6bkzwrmeg` |
-| Amplify Web UI | ✅ Live | https://main.d21aywet1qkneb.amplifyapp.com |
 | CloudWatch Alarms (5) | ✅ Live | InputTokens, OutputTokens, RPM, Throttles, TPM Quota |
-| SNS Topic | ✅ Live | `cost-intelligence-alerts` |
-| AWS Chatbot → Slack | ✅ Configured | Channel: `#cost-op-hackathon` |
-| DynamoDB (pattern memory) | ✅ Created | Table: `cost_patterns` |
+| EventBridge → Lambda → Agent | ✅ Live | Proactive investigation on alarm |
+| SNS → AWS Chatbot → Slack | ✅ Live | `#cost-op-hackathon` |
+| Web Console (Amplify) | ✅ Live | https://main.d21aywet1qkneb.amplifyapp.com |
+| DynamoDB (pattern memory) | ✅ Live | Table: `cost_patterns` |
 | GitHub Repo | ✅ Live | https://github.com/amitml/cost-intelligence-agent |
 
-## What's Written But Not Yet Deployed
-
-| Component | File | What's Needed |
-|---|---|---|
-| CloudWatch Realtime MCP | `extensions/cloudwatch-realtime/server.py` | Containerize + register in Gateway |
-| CloudTrail MCP | `extensions/cloudtrail-tools/server.py` | Containerize + register in Gateway |
-| Agent Economics MCP | `extensions/agent-economics/server.py` | Containerize + register in Gateway |
-| Pattern Memory MCP | `extensions/pattern-memory/server.py` | Containerize + register in Gateway |
-| Event Trigger Lambda | `extensions/event-trigger/handler.py` | Deploy Lambda + EventBridge rule |
-
-## Current Flow (working now)
+### How It Works
 
 ```
-Customer → Amplify Web UI → AgentCore → MCP tools (Cost Explorer, Budgets, Pricing) → answer
-CloudWatch Alarm → SNS → AWS Chatbot → Slack #cost-op-hackathon (raw alarm)
+PROACTIVE (alarm → agent → Slack):
+  CloudWatch Alarm fires
+    → EventBridge → Lambda (pass-through)
+      → AgentCore investigates using ALL tools:
+        - find_similar_patterns (have I seen this before?)
+        - get_alarm_status (what's firing?)
+        - get_bedrock_usage (token counts right now)
+        - get_recent_changes (what changed in CloudTrail?)
+        - get_recent_deployments (who deployed what?)
+        - billingMcp___cost-explorer (dollar amounts)
+        - billingMcp___cost-anomaly (anomaly history)
+      → Posts smart analysis to SNS → Chatbot → Slack
+
+REACTIVE (user asks via web console):
+  User → Web Console → API Gateway → Lambda → AgentCore
+    → Same tools, same investigation, same memory
+    → Response back to user
 ```
 
-## Target Flow (once extensions deployed)
+### Verified in Logs
 
+The agent successfully calls all custom tools during investigations:
 ```
-CloudWatch Alarm → EventBridge → Lambda (10-line pass-through) → AgentCore (brain)
-    AgentCore investigates:
-      ├── CloudWatch MCP: what's spiking?
-      ├── CloudTrail MCP: what changed?
-      ├── Cost Explorer MCP: how much?
-      ├── Pattern Memory MCP: seen this before?
-      └── Posts smart explanation → SNS → Chatbot → Slack
-
-Customer replies in Slack → @aws command → Lambda → AgentCore (same session, has memory)
-    AgentCore answers using same tools, remembers the investigation context
+Tool #1: find_similar_patterns
+Tool #2: get_alarm_status
+Tool #3: get_bedrock_usage
+Tool #4: get_recent_changes
+Tool #5: get_recent_deployments
+Tool #6: billingMcp___cost-anomaly
+Tool #7: billingMcp___cost-explorer
 ```
 
-## Key ARNs & IDs
+### Key ARNs
 
 ```
-Account:          463440883924
-Region:           us-east-1
 AgentCore ARN:    arn:aws:bedrock-agentcore:us-east-1:463440883924:runtime/finops_runtime-f25c6ZCRzH
 Gateway ARN:      arn:aws:bedrock-agentcore:us-east-1:463440883924:gateway/finops-gateway-c6bkzwrmeg
 Memory ID:        finops_memory-wGlPmPF0v3
 SNS Topic:        arn:aws:sns:us-east-1:463440883924:cost-intelligence-alerts
 DynamoDB Table:   cost_patterns
 Slack Channel:    C0B0BR1MCCW (#cost-op-hackathon)
-Chatbot Config:   cost-op-hackathon_chatbot
-Amplify App:      d21aywet1qkneb
-Amplify URL:      https://main.d21aywet1qkneb.amplifyapp.com
-User Pool ID:     us-east-1_xuxlokqEr
-Client ID:        3g0912f70vs77d753jdnb7i1cm
-Identity Pool:    us-east-1:24905ab4-2105-4f7a-88b6-4feeb223eaf3
+Web Console:      https://main.d21aywet1qkneb.amplifyapp.com
+API Endpoint:     https://i7mkprsbm1.execute-api.us-east-1.amazonaws.com/ask
+GitHub:           https://github.com/amitml/cost-intelligence-agent
 ```
 
-## Next Steps
+### Next Steps
 
-1. Verify Slack alert delivery (alarm triggered, waiting for Chatbot to post)
-2. Deploy event-trigger Lambda + wire to EventBridge
-3. Containerize + deploy extension MCP servers to Gateway
-4. Test full loop: alarm → agent investigates → smart alert in Slack → customer replies
-5. Later: Slack app approval for full conversational bot (no @aws prefix)
+1. **Slack app approval** → deploy AgentCore-Slack integration for full conversational bot
+2. **Enable Bedrock model invocation logging** → unlocks per-agent cost breakdown
+3. **Tune alarm thresholds** based on baseline data after 1 week
+4. **Publish as MCP server** → extract Strands tools into one MCP server for registry
