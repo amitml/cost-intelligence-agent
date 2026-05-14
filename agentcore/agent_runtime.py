@@ -10,6 +10,12 @@ from strands.models import BedrockModel
 from strands.tools.mcp import MCPClient
 from botocore.credentials import Credentials
 from streamable_http_sigv4 import streamablehttp_client_with_sigv4
+from tools import (
+    get_alarm_status, get_bedrock_usage, get_metric_history,
+    get_recent_changes, get_recent_deployments,
+    get_agent_costs, detect_agent_loops,
+    save_pattern, find_similar_patterns
+)
 import os
 import boto3
 import logging
@@ -75,6 +81,14 @@ def get_current_date_utc() -> str:
         return "2026-01-24 (Friday) 12:00 UTC"
 
 
+# Local Strands tools (Cost Intelligence extensions)
+local_tools = [
+    get_alarm_status, get_bedrock_usage, get_metric_history,
+    get_recent_changes, get_recent_deployments,
+    get_agent_costs, detect_agent_loops,
+    save_pattern, find_similar_patterns
+]
+
 # Global MCP client to keep connection alive
 mcp_client = None
 agent = None
@@ -119,7 +133,7 @@ def initialize_agent_with_gateway():
         # Store system prompt template for reuse
         # IMPORTANT: Don't list specific tool names in system prompt
         # Gateway prefixes tool names, so let the agent discover them dynamically
-        system_prompt_template = f"""You are a FinOps AI assistant specialized in AWS cost optimization and analysis.
+        system_prompt_template = f"""You are a Cost Intelligence Agent specialized in AWS cost monitoring, anomaly investigation, and per-agent economics.
 
 Current date: {current_date}
 
@@ -128,29 +142,32 @@ You have access to tools for:
 - Budget Management: View budgets and their status
 - Optimization: Get recommendations for compute optimization, rightsizing, and savings plans
 - Free Tier: Monitor AWS Free Tier usage
-- Pricing: Look up AWS service pricing, compare instance costs, get pricing details
+- Pricing: Look up AWS service pricing, compare instance costs
+- Real-time Monitoring: Check CloudWatch alarm status, get current Bedrock token/RPM usage, view metric history
+- Root Cause Analysis: Query CloudTrail for recent changes and deployments that correlate with cost spikes
+- Agent Economics: Get per-Bedrock-agent cost breakdown, detect runaway agent loops
+- Pattern Memory: Save and recall cost incident patterns for faster future investigation
 
-When a user asks about costs or pricing:
-1. Use the appropriate tools to gather the information
-2. Provide clear, actionable recommendations
-3. Always mention specific time periods, services, or resources in your responses
+When investigating a cost issue:
+1. First check if you've seen a similar pattern before (find_similar_patterns)
+2. Check what's happening right now (get_alarm_status, get_bedrock_usage)
+3. Check what changed recently (get_recent_changes, get_recent_deployments)
+4. Correlate the data and explain the root cause
+5. Provide a specific recommended action
+6. Save the pattern for future reference (save_pattern)
 
 When using the AWS Pricing tools:
-- IMPORTANT: Always use tools prefixed with "pricingMcp__" for pricing lookups (e.g., pricingMcp__get_products, pricingMcp__get_pricing_service_codes). Do NOT use billingMcp__ tools for pricing queries.
-- First call pricingMcp__get_pricing_service_codes to find the correct service code (e.g., "AmazonEC2", "AmazonS3", "AmazonCloudWatch")
-- Then call pricingMcp__get_pricing_service_attributes to discover available filter names for that service
-- Then call pricingMcp__get_pricing_attribute_values to get valid values for a specific attribute
-- When calling pricingMcp__get_products, use the exact filter names and values from the above steps
-- For EC2 pricing, common filters include: instanceType, operatingSystem (Linux), tenancy (Shared), preInstalledSw (NA), capacitystatus (Used)
-- AWS region names in the Pricing API use display names like "US East (N. Virginia)" not region codes like "us-east-1"
+- IMPORTANT: Always use tools prefixed with "pricingMcp__" for pricing lookups
+- First call pricingMcp__get_pricing_service_codes to find the correct service code
+- AWS region names in the Pricing API use display names like "US East (N. Virginia)" not region codes
 
-Be concise, accurate, and actionable in your responses."""
+Be concise and actionable. Use bullet points. Cite specific numbers."""
         
         # Create agent with Gateway tools (memory will be added per-request)
         # Note: We don't add session_manager here because it's request-specific
         agent = Agent(
             model=model,
-            tools=mcp_tools,
+            tools=mcp_tools + local_tools,
             system_prompt=system_prompt_template
         )
         
@@ -211,7 +228,7 @@ def invoke(payload):
             # Create agent with session manager (memory handled automatically)
             agent_with_memory = Agent(
                 model=model,
-                tools=mcp_tools,  # Use globally stored tools
+                tools=mcp_tools + local_tools,  # Use globally stored tools + local tools
                 system_prompt=system_prompt_template,  # Use stored system prompt
                 session_manager=session_manager  # This handles memory automatically!
             )
