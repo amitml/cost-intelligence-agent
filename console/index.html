@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CostOp — Intelligence Agent</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Space Grotesk',system-ui,sans-serif;background:#F8F9FA;color:#111827;-webkit-font-smoothing:antialiased;height:100vh;display:flex;flex-direction:column}header{height:60px;border-bottom:1px solid #EAEAEA;display:flex;align-items:center;justify-content:space-between;padding:0 24px;background:#FFF;flex-shrink:0}.brand{font-family:'JetBrains Mono',monospace;font-weight:800;font-size:18px;letter-spacing:1px}.accent{color:#E65100}.tag{font-size:11px;color:#9CA3AF;font-weight:500;margin-left:6px}.status-badge{font-size:11px;color:#059669;background:#ECFDF5;padding:4px 10px;border-radius:12px;font-weight:500}.metrics{display:flex;gap:24px;padding:16px 24px;background:#FFF;border-bottom:1px solid #EAEAEA}.metric .val{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700}.metric .lbl{font-size:11px;color:#6B7280;text-transform:uppercase;letter-spacing:.5px;margin-top:2px}.metric.danger .val{color:#DC2626}.metric.warn .val{color:#D97706}.metric.ok .val{color:#059669}.container{flex:1;display:flex;overflow:hidden}.alerts-panel{width:340px;border-right:1px solid #EAEAEA;background:#FFF;display:flex;flex-direction:column}.alerts-panel h2{padding:16px 20px;font-size:12px;color:#6B7280;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #F3F4F6;font-weight:600}.alerts-list{flex:1;overflow-y:auto;padding:8px 12px}.alert-card{padding:12px 16px;border-radius:10px;margin-bottom:6px;cursor:pointer;border:1px solid transparent;transition:all .15s}.alert-card:hover{background:#F9FAFB;border-color:#E5E7EB}.alert-card .time{font-size:11px;color:#9CA3AF}.alert-card .title{font-size:13px;font-weight:600;margin:3px 0}.alert-card .detail{font-size:12px;color:#6B7280;line-height:1.4}.alert-card.critical .title::before{content:'🔴 '}.alert-card.warning .title::before{content:'🟡 '}.alert-card.info .title::before{content:'🔵 '}.chat-panel{flex:1;display:flex;flex-direction:column;background:#F8F9FA}.messages{flex:1;overflow-y:auto;padding:24px}.msg{margin-bottom:16px;display:flex}.msg.user{justify-content:flex-end}.msg.agent{justify-content:flex-start}.bubble{max-width:80%;padding:12px 18px;font-size:14px;line-height:1.7}.msg.user .bubble{background:#111827;color:#FFF;border-radius:16px 16px 4px 16px}.msg.agent .bubble{background:#FFF;border:1px solid #E5E7EB;border-radius:16px 16px 16px 4px}.msg .meta{font-size:11px;color:#9CA3AF;margin-top:4px;padding:0 4px}.typing{display:none;padding:4px 24px;font-size:12px;color:#6B7280;font-style:italic}.typing.active{display:block}.input-bar{padding:12px 24px 20px;border-top:1px solid #E5E7EB;background:#FFF;display:flex;gap:10px}.input-bar input{flex:1;border:1px solid #D1D5DB;border-radius:12px;padding:12px 16px;font-size:14px;font-family:inherit;outline:none}.input-bar input:focus{border-color:#E65100;box-shadow:0 0 0 3px rgba(230,81,0,.08)}.input-bar button{padding:10px 22px;border-radius:10px;border:none;background:#111827;color:#FFF;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}.input-bar button:disabled{background:#D1D5DB;cursor:not-allowed}.welcome{text-align:center;padding:60px 20px}.welcome h2{font-size:20px;font-weight:700;margin-bottom:8px}.welcome p{color:#6B7280;font-size:14px;margin-bottom:20px}.examples{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:520px;margin:0 auto}.examples button{border:1px solid #E5E7EB;background:#FFF;padding:8px 14px;border-radius:20px;font-size:13px;cursor:pointer;color:#374151;font-family:inherit}.examples button:hover{border-color:#E65100;color:#E65100}
+</style>
+</head>
+<body>
+<header>
+  <div><span class="brand">COST<span class="accent">OP</span></span><span class="tag">Intelligence Agent</span></div>
+  <span class="status-badge">● Live</span>
+</header>
+<div class="metrics">
+  <div class="metric warn"><div class="val">$573</div><div class="lbl">MTD Spend</div></div>
+  <div class="metric danger"><div class="val">$309</div><div class="lbl">Bedrock</div></div>
+  <div class="metric ok"><div class="val">2</div><div class="lbl">Alarms</div></div>
+  <div class="metric ok"><div class="val">3</div><div class="lbl">Agents</div></div>
+</div>
+<div class="container">
+  <div class="alerts-panel">
+    <h2>Recent Alerts</h2>
+    <div class="alerts-list">
+      <div class="alert-card critical" onclick="investigate(this)"><div class="time">2 min ago</div><div class="title">Bedrock InputTokens > 200K/5min</div><div class="detail">data-analyst-agent: 450K tokens/hr</div></div>
+      <div class="alert-card warning" onclick="investigate(this)"><div class="time">15 min ago</div><div class="title">RPM > 100/min</div><div class="detail">order-processing: 142 calls/min</div></div>
+      <div class="alert-card info" onclick="investigate(this)"><div class="time">1 hour ago</div><div class="title">TPM Quota at 82%</div><div class="detail">Approaching throttle limit</div></div>
+    </div>
+  </div>
+  <div class="chat-panel">
+    <div class="messages" id="messages">
+      <div class="welcome" id="welcome">
+        <h2>Cost Intelligence Agent</h2>
+        <p>Real-time monitoring • Per-agent economics • Anomaly investigation</p>
+        <div class="examples">
+          <button onclick="ask(this.textContent)">What are my top cost drivers?</button>
+          <button onclick="ask(this.textContent)">Which agent costs the most?</button>
+          <button onclick="ask(this.textContent)">What changed today?</button>
+          <button onclick="ask(this.textContent)">Am I over budget?</button>
+        </div>
+      </div>
+    </div>
+    <div class="typing" id="typing">Investigating...</div>
+    <div class="input-bar">
+      <input type="text" id="input" placeholder="Ask about costs, agents, anomalies..." autocomplete="off" onkeydown="if(event.key==='Enter')ask()">
+      <button onclick="ask()" id="btn">Send</button>
+    </div>
+  </div>
+</div>
+<script>
+const API='https://i7mkprsbm1.execute-api.us-east-1.amazonaws.com/ask';
+let sid='s-'+Date.now();
+
+function investigate(el){
+  const t=el.querySelector('.title').textContent;
+  const d=el.querySelector('.detail').textContent;
+  document.getElementById('input').value=`Investigate: ${t} — ${d}`;
+  document.getElementById('input').focus();
+}
+
+async function ask(text){
+  const input=document.getElementById('input');
+  const msg=text||input.value.trim();
+  if(!msg)return;
+  const w=document.getElementById('welcome');if(w)w.remove();
+  addMsg(msg,'user');
+  input.value='';
+  document.getElementById('btn').disabled=true;
+  document.getElementById('typing').classList.add('active');
+  try{
+    const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:msg+' Be concise, use bullet points.',sessionId:sid})});
+    const d=await r.json();
+    addMsg(d.response||d.body||JSON.stringify(d),'agent');
+  }catch(e){addMsg('Timeout — agent is still thinking. Try a simpler question.','agent')}
+  document.getElementById('btn').disabled=false;
+  document.getElementById('typing').classList.remove('active');
+}
+
+function addMsg(text,role){
+  const el=document.getElementById('messages');
+  const d=document.createElement('div');d.className='msg '+role;
+  const f=text.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').replace(/\n/g,'<br>').replace(/`([^`]+)`/g,'<code style="background:#F3F4F6;padding:2px 5px;border-radius:4px;font-size:12px;font-family:JetBrains Mono,monospace">$1</code>');
+  d.innerHTML=`<div class="bubble">${f}</div><div class="meta">${role==='agent'?'Agent':'You'} • now</div>`;
+  el.appendChild(d);el.scrollTop=el.scrollHeight;
+}
+</script>
+</body>
+</html>
