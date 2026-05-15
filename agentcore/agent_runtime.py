@@ -19,6 +19,7 @@ from tools import (
     check_bedrock_config_changes
 )
 from skill_loader import select_skill
+from slack_handler import start_slack_listener, set_agent_fn
 import os
 import boto3
 import logging
@@ -303,4 +304,26 @@ if __name__ == "__main__":
     logger.info(f"📊 Model: {MODEL_ID}")
     logger.info(f"🌐 Gateway: {gateway_endpoint}")
     logger.info(f"💾 Memory: {MEMORY_ID if MEMORY_ID else 'Disabled'}")
+    
+    # Start Slack Socket Mode (direct connection, no Lambda needed)
+    def slack_agent_invoke(prompt, session_id, user_id):
+        """Called by Slack handler to invoke the agent."""
+        try:
+            skill_instructions = select_skill(prompt)
+            request_prompt = f"{system_prompt_template}\n\n## ACTIVE SKILL:\n{skill_instructions}"
+            agent_instance = Agent(model=model, tools=mcp_tools + local_tools, system_prompt=request_prompt)
+            result = agent_instance(prompt)
+            if hasattr(result, 'message'):
+                msg = result.message
+                if isinstance(msg, dict) and 'content' in msg:
+                    return ''.join([item.get('text', '') for item in msg['content'] if 'text' in item])
+                return str(msg)
+            return str(result)
+        except Exception as e:
+            return f"Error: {str(e)}"
+    
+    set_agent_fn(slack_agent_invoke)
+    start_slack_listener()
+    logger.info("🔌 Slack Socket Mode started")
+    
     app.run()
