@@ -83,14 +83,38 @@ async function loadAlerts(){
       html+=`<div class="section-label" style="color:#10B981">✅ All Clear</div>`;
     }
 
-    // Date sections (collapsible)
+    // Date sections (grouped by alarm name)
     Object.entries(byDate).forEach(([date,events])=>{
       const spikes=events.filter(e=>e.isAlarm).length;
       html+=`<div class="section-label date-tab" onclick="this.nextElementSibling.classList.toggle('hidden')" style="cursor:pointer">📅 ${date} <span style="color:#DC2626;font-size:9px;margin-left:4px">${spikes} spike${spikes!==1?'s':''}</span></div>`;
       html+=`<div class="date-events">`;
+      
+      // Group by alarm name
+      const byAlarm={};
       events.forEach(e=>{
-        html+=`<div class="alert-item" onclick="investigateAlert('${e.name}')"><div class="title"><span class="severity ${e.isAlarm?'critical':'info'}"></span>${e.label}</div><div class="meta">${e.time} • ${e.isAlarm?'🔴 Fired':'✅ Resolved'}</div></div>`;
+        if(!byAlarm[e.label])byAlarm[e.label]=[];
+        byAlarm[e.label].push(e);
       });
+      
+      Object.entries(byAlarm).forEach(([label,alarmEvents])=>{
+        const fires=alarmEvents.filter(e=>e.isAlarm).length;
+        if(fires===0&&alarmEvents.length===1){
+          // Single resolved event, skip
+          return;
+        }
+        html+=`<div class="alert-item tree-parent" onclick="const c=this.querySelector('.tree-children');if(c)c.classList.toggle('hidden');investigateAlert('${alarmEvents[0].name}')">`;
+        html+=`<div class="title"><span class="severity ${fires>0?'critical':'info'}"></span>${label} ${fires>0?`<span style="font-size:10px;color:#DC2626;font-weight:400">(${fires}x)</span>`:''}</div>`;
+        html+=`<div class="meta">${alarmEvents[0].time} — ${alarmEvents[alarmEvents.length-1].time}</div>`;
+        if(alarmEvents.length>1){
+          html+=`<div class="tree-children hidden" onclick="event.stopPropagation()">`;
+          alarmEvents.forEach(e=>{
+            html+=`<div class="tree-child">${e.time} ${e.isAlarm?'🔴 Fired':'✅ Resolved'}</div>`;
+          });
+          html+=`</div>`;
+        }
+        html+=`</div>`;
+      });
+      
       html+=`</div>`;
     });
 
