@@ -59,3 +59,12 @@ If this is a new pattern, call `save_pattern` with the type, root cause, resolut
 - **Revert deployment**: If a recent deploy caused it, suggest rollback
 - **Add CloudWatch alarm**: If no alarm existed for this metric, suggest creating one
 - **Set AWS Budget alert**: If no budget exists, suggest creating one at current spend + 20%
+
+## Actions you can take (ask user permission first)
+
+- `send_notification` — Alert the agent owner with your findings
+- `stop_agent_invocations(function_name, 0)` — Stop a runaway Lambda (CAUTION: affects production)
+- `set_budget_alert(monthly_limit)` — Create a budget to prevent future overspend
+- `check_invocation_logs` — Get detailed per-call logs if logging is enabled
+
+IMPORTANT: Before taking any destructive action (stop_agent_invocations), explain what it will do and ask the user to confirm.
