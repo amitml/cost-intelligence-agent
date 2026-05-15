@@ -325,13 +325,18 @@ def stop_agent_invocations(function_name: str, max_concurrency: int = 0) -> str:
 @tool
 def check_invocation_logs(hours: int = 1) -> str:
     """Check Bedrock model invocation logs for recent calls.
-    Shows what models are being called, by whom, and token counts.
+    Shows models, agent ARNs, session IDs, token counts, and callers.
     Requires Bedrock invocation logging to be enabled."""
     start = int((datetime.now(timezone.utc) - timedelta(hours=hours)).timestamp())
     end = int(datetime.now(timezone.utc).timestamp())
 
     query = """
-    fields @timestamp, modelId, input.inputTokenCount, output.outputTokenCount
+    fields @timestamp, modelId, 
+           input.inputTokenCount as inputTokens, 
+           output.outputTokenCount as outputTokens,
+           requestMetadata.agentId as agentId,
+           requestMetadata.sessionId as sessionId,
+           identity.arn as callerArn
     | sort @timestamp desc
     | limit 20
     """
@@ -354,8 +359,11 @@ def check_invocation_logs(hours: int = 1) -> str:
             entries.append({
                 'time': fields.get('@timestamp', ''),
                 'model': fields.get('modelId', ''),
-                'input_tokens': fields.get('input.inputTokenCount', '0'),
-                'output_tokens': fields.get('output.outputTokenCount', '0')
+                'input_tokens': fields.get('inputTokens', '0'),
+                'output_tokens': fields.get('outputTokens', '0'),
+                'agent_id': fields.get('agentId', 'direct-call'),
+                'session_id': fields.get('sessionId', 'n/a'),
+                'caller_arn': fields.get('callerArn', 'unknown')
             })
         return json.dumps(entries) if entries else "No invocation logs found. Enable Bedrock model invocation logging."
     except logs_client.exceptions.ResourceNotFoundException:

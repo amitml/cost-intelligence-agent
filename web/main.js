@@ -133,17 +133,28 @@ window.investigateAlert=(name)=>{
   const area=document.getElementById('chatArea');
   const empty=area.querySelector('.empty-state');if(empty)empty.remove();
   addMsg(`Investigate: ${name.replace('CostAgent-','')}`,'user');
-  callAgent(`Investigate alarm "${name}". You are a cost forensics investigator. Be SPECIFIC:
+  callAgent(`Investigate alarm "${name}". You are a senior SRE doing forensics. Connect the dots across services.
 
-**STATUS:** Is it firing now or resolved? One sentence.
-**IMPACT:** Exact $/hour and $/day. Compare to normal baseline.
-**WHO:** Which specific agent ARN, Lambda function, or IAM role is responsible? Check CloudTrail.
-**WHAT CHANGED:** What deployment or config change triggered this? Give commit time + user.
-**ROOT CAUSE:** One sentence — not "high usage" but WHY (loop? prompt change? new workload?)
-**FIX:** One specific command or action to stop it. Not "monitor" — give me the fix.
+INSTRUCTIONS:
+1. Call get_alarm_status + get_bedrock_usage for current state
+2. Call get_recent_changes('bedrock') AND get_recent_deployments() — correlate timestamps
+3. Call check_invocation_logs() for session IDs and per-call details
+4. Call check_bedrock_config_changes() for new agents or model changes
+5. Connect the dots: which deployment → triggered which agent → caused which spike
 
-If you can't identify WHO, say what's blocking you (e.g. "invocation logging not enabled").
-Do NOT say "monitor" or "investigate further" — give a definitive answer.`);
+RESPOND WITH:
+
+**STATUS:** Firing/Resolved + duration
+**IMPACT:** $/hour now vs $/hour baseline. Total $ wasted.
+**EVIDENCE:**
+- Agent ARN: [exact ARN from logs]
+- Lambda: [function name that invoked it]
+- Session IDs: [from invocation logs]
+- Trigger: [CloudTrail event + timestamp + user]
+**CORRELATION:** Connect deployment → agent → spike in one sentence
+**FIX:** Exact CLI command to stop it. No "monitor" — give the fix.
+
+If invocation logging is not enabled, say: "BLIND SPOT: Enable logging to see per-agent details" and give the enable command.`);
 };
 
 window.newChat=()=>{sessionId='s-'+Date.now();document.getElementById('chatArea').innerHTML='<div class="empty-state"><h3>Ask anything</h3><p>Costs, agents, anomalies, actions</p></div>'};
