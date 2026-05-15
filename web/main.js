@@ -74,47 +74,53 @@ async function loadAlerts(){
     });
 
     let html='';
-    // Live
+    // Current Status
     const live=curNames.filter((_,i)=>curStates[i]&&curStates[i][1]==='ALARM');
+    html+=`<div class="section-label">Current Status</div>`;
     if(live.length){
-      html+=`<div class="section-label" style="color:#DC2626">🔴 Live</div>`;
-      html+=live.map(a=>`<div class="alert-item" onclick="investigateAlert('${a[1]}')"><div class="title"><span class="severity critical"></span>${a[1].replace('CostAgent-','')}</div><div class="meta">Click to investigate</div></div>`).join('');
+      html+=live.map(a=>`<div class="alert-item" onclick="investigateAlert('${a[1]}')"><div class="title"><span class="severity critical"></span>${a[1].replace('CostAgent-','')}</div><div class="meta">🔴 ALARM — click to investigate</div></div>`).join('');
     }else{
-      html+=`<div class="section-label" style="color:#10B981">✅ All Clear</div>`;
+      html+=`<div style="padding:8px 14px;font-size:12px;color:#10B981">✅ All Clear</div>`;
     }
 
-    // Date sections (grouped by alarm name)
-    Object.entries(byDate).forEach(([date,events])=>{
-      const spikes=events.filter(e=>e.isAlarm).length;
-      html+=`<div class="section-label date-tab" onclick="this.nextElementSibling.classList.toggle('hidden')" style="cursor:pointer">📅 ${date} <span style="color:#DC2626;font-size:9px;margin-left:4px">${spikes} spike${spikes!==1?'s':''}</span></div>`;
-      html+=`<div class="date-events">`;
-      
-      // Group by alarm name
+    // Split today vs past days
+    const todayKey=new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'});
+    const todayEvents=byDate[todayKey]||[];
+    const pastDates=Object.entries(byDate).filter(([k])=>k!==todayKey);
+
+    // Recent (today's events)
+    if(todayEvents.length){
+      const spikes=todayEvents.filter(e=>e.isAlarm).length;
+      html+=`<div class="section-label">Recent <span style="color:#DC2626;font-size:9px;margin-left:4px">${spikes} spike${spikes!==1?'s':''} today</span></div>`;
       const byAlarm={};
-      events.forEach(e=>{
-        if(!byAlarm[e.label])byAlarm[e.label]=[];
-        byAlarm[e.label].push(e);
-      });
-      
+      todayEvents.forEach(e=>{if(!byAlarm[e.label])byAlarm[e.label]=[];byAlarm[e.label].push(e)});
       Object.entries(byAlarm).forEach(([label,alarmEvents])=>{
         const fires=alarmEvents.filter(e=>e.isAlarm).length;
-        if(fires===0&&alarmEvents.length===1){
-          // Single resolved event, skip
-          return;
-        }
+        if(!fires)return;
         html+=`<div class="alert-item tree-parent" onclick="const c=this.querySelector('.tree-children');if(c)c.classList.toggle('hidden');investigateAlert('${alarmEvents[0].name}')">`;
-        html+=`<div class="title"><span class="severity ${fires>0?'critical':'info'}"></span>${label} ${fires>0?`<span style="font-size:10px;color:#DC2626;font-weight:400">(${fires}x)</span>`:''}</div>`;
+        html+=`<div class="title"><span class="severity critical"></span>${label} <span style="font-size:10px;color:#DC2626;font-weight:400">(${fires}x)</span></div>`;
         html+=`<div class="meta">${alarmEvents[0].time} — ${alarmEvents[alarmEvents.length-1].time}</div>`;
         if(alarmEvents.length>1){
           html+=`<div class="tree-children hidden" onclick="event.stopPropagation()">`;
-          alarmEvents.forEach(e=>{
-            html+=`<div class="tree-child">${e.time} ${e.isAlarm?'🔴 Fired':'✅ Resolved'}</div>`;
-          });
+          alarmEvents.forEach(e=>{html+=`<div class="tree-child">${e.time} ${e.isAlarm?'🔴 Fired':'✅ Resolved'}</div>`});
           html+=`</div>`;
         }
         html+=`</div>`;
       });
-      
+    }
+
+    // Past days
+    pastDates.forEach(([date,events])=>{
+      const spikes=events.filter(e=>e.isAlarm).length;
+      html+=`<div class="section-label date-tab" onclick="this.nextElementSibling.classList.toggle('hidden')" style="cursor:pointer">📅 ${date} <span style="color:#DC2626;font-size:9px;margin-left:4px">${spikes} spike${spikes!==1?'s':''}</span></div>`;
+      html+=`<div class="date-events">`;
+      const byAlarm={};
+      events.forEach(e=>{if(!byAlarm[e.label])byAlarm[e.label]=[];byAlarm[e.label].push(e)});
+      Object.entries(byAlarm).forEach(([label,alarmEvents])=>{
+        const fires=alarmEvents.filter(e=>e.isAlarm).length;
+        if(!fires)return;
+        html+=`<div class="alert-item" onclick="investigateAlert('${alarmEvents[0].name}')"><div class="title"><span class="severity warning"></span>${label} (${fires}x)</div><div class="meta">${alarmEvents[0].time}</div></div>`;
+      });
       html+=`</div>`;
     });
 
