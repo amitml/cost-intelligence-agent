@@ -290,3 +290,148 @@ Then manually: create CloudWatch alarms, EventBridge rule, Lambda bridge.
 ---
 
 *Built with: Amazon Bedrock AgentCore, Strands Agents SDK, Agent Skills spec, AWS Labs MCP servers, Claude Sonnet 4.5*
+
+
+---
+
+## 13. PRFAQ — Working Backwards
+
+### Press Release (Internal)
+
+**CostOp Intelligence Agent — The first AI agent that investigates your other AI agents' costs**
+
+Teams running Bedrock agents in production have no visibility into per-agent costs. Cost Explorer shows a single line item. Cost Anomaly Detection flags it a day later. By then, a looping agent has wasted hundreds of dollars.
+
+CostOp is a self-hosted investigation agent that detects Bedrock cost spikes in 5 minutes, identifies the specific agent ARN and deployment responsible, and provides the exact command to stop it. It follows the same pattern as AWS DevOps Agent — alarm fires, agent investigates, delivers root cause + fix — but for cost incidents instead of operational incidents.
+
+**What it does today:**
+- Detects token/RPM spikes via CloudWatch Alarms (5-minute evaluation)
+- Investigates autonomously: correlates CloudWatch + CloudTrail + Cost Explorer
+- Identifies specific agent ARNs causing the spike
+- Shows cost impact ($/hour now vs baseline, today vs yesterday)
+- Provides exact CLI fix commands
+- One-click actions: stop agent, set budget, notify owner
+- Learns from past incidents (pattern memory)
+- Conversational follow-ups with 30-day memory
+
+**What it doesn't do yet:**
+- Full Slack integration (needs app approval)
+- Usage graphs/visualization
+- Auto-remediation without human confirmation
+- One-click deployment for new customers
+- Multi-account support
+- Predictive cost forecasting
+
+---
+
+### FAQ
+
+**Q: How is this different from DevOps Agent?**
+
+DevOps Agent investigates operational incidents (latency, errors, outages). CostOp investigates cost incidents (token spikes, runaway agents, budget overruns). Same pattern — alarm → investigate → root cause → fix. Different domain.
+
+DevOps Agent is a managed AWS service. CostOp is self-hosted in the customer's account. Built on the same foundation (AgentCore, Strands, Skills) but customer-owned and extensible.
+
+---
+
+**Q: Why not just add this as a feature to Cost Anomaly Detection?**
+
+Cost Anomaly Detection is batch (daily). This is real-time (5 minutes). CAD tells you WHAT changed. This tells you WHY, WHO, and HOW TO FIX. Different architecture, different latency, different value.
+
+They're complementary. CostOp can consume CAD alerts as one input signal.
+
+---
+
+**Q: Why not use the existing FinOps Agent (AWS sample)?**
+
+The FinOps Agent (aws-samples/sample-finops-agent-amazon-bedrock-agentcore) answers cost questions conversationally. It's reactive — you ask, it answers.
+
+CostOp adds:
+- Proactive detection (alarms trigger investigation without human asking)
+- Per-agent attribution (which Bedrock agent costs what)
+- Cross-service correlation (deployment → agent → spike)
+- Investigation skills (structured playbooks, not free-form)
+- Pattern memory (learns from past incidents)
+- Remediation actions (stop, throttle, budget)
+
+We started from the FinOps Agent codebase and extended it.
+
+---
+
+**Q: What's the killer demo?**
+
+A Bedrock agent starts looping. Within 5 minutes:
+1. CloudWatch alarm fires (tokens > threshold)
+2. Agent investigates automatically
+3. Finds: agent ARN e92b6952, 8 calls/minute, started after deploy at 02:20 by user MCP
+4. Reports: "$5.33/hour burn rate, 10x baseline"
+5. Gives fix: `aws lambda put-function-concurrency --function-name X --reserved-concurrent-executions 0`
+6. User clicks "Stop" → done
+
+Without CostOp: engineer wakes up next day, sees $200 charge, spends 2 hours in 3 consoles figuring out what happened.
+
+---
+
+**Q: What happens when Slack is enabled?**
+
+The web console becomes optional. The agent lives in Slack:
+- Proactive: posts investigation results to #cost-alerts channel
+- Reactive: user replies in-thread, agent responds with full context
+- Actions: buttons in Slack messages (Throttle, Budget, Notify)
+
+Same agent, same tools, same memory. Just a different interface. Uses the published AWS pattern (sample-Integrating-Amazon-Bedrock-AgentCore-with-Slack).
+
+---
+
+**Q: What's the moat? Why can't someone else build this?**
+
+They can. It's open source. The value is:
+1. It's already built and working
+2. It uses the Agent Skills spec (portable, extensible)
+3. It integrates with the AWS cost ecosystem (CE, CAD, Budgets, CloudTrail)
+4. Pattern memory creates compounding value over time
+5. The investigation skill can be published to MCP registry for any agent to use
+
+---
+
+**Q: What are the risks?**
+
+| Risk | Mitigation |
+|---|---|
+| Agent itself costs money (Sonnet) | Switch to Haiku for 92% savings. $0.03/investigation. |
+| Agent causes the spike it's investigating | Concurrency limit on bridge Lambda. Circuit breaker. |
+| False positives (alarm fires, nothing wrong) | Agent reports "all clear" quickly (2-3 tools, not 5). |
+| Invocation logging not enabled | Agent reports blind spot + gives enable command. Deployment package auto-enables. |
+| Response quality varies | Skills enforce structure. Steering hooks (future) enforce tool ordering. |
+
+---
+
+**Q: What's the 6-month roadmap?**
+
+| Month | Milestone |
+|---|---|
+| Month 1 (done) | Core agent, web UI, alarms, investigation, actions |
+| Month 2 | Slack integration, usage graphs, Haiku option |
+| Month 3 | One-click CloudFormation deployment, auto-enable logging |
+| Month 4 | Auto-remediation with guardrails, multi-account |
+| Month 5 | Publish as MCP server on registry |
+| Month 6 | Predictive alerts (deploy → cost forecast) |
+
+---
+
+**Q: Who is this for?**
+
+- Platform engineering teams running 3+ Bedrock agents in production
+- FinOps teams responsible for AI/ML spend
+- SREs on-call for cost incidents
+- Any team where a single runaway agent can burn $100+/day undetected
+
+---
+
+**Q: Can this be extended beyond Bedrock?**
+
+Yes. The architecture (skills + tools + alarms) works for any service. Add tools for EC2, RDS, SageMaker. Add skills for "EC2 idle instance investigation" or "RDS storage spike." The framework is service-agnostic. We started with Bedrock because that's where the visibility gap is worst.
+
+---
+
+*"Cost Anomaly Detection tells you WHAT changed. CostOp tells you WHY, WHO caused it, HOW MUCH it's costing, and gives you the command to STOP it — in 5 minutes, not 24 hours."*
