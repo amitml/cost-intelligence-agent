@@ -16,6 +16,7 @@ from tools import (
     get_agent_costs, detect_agent_loops,
     save_pattern, find_similar_patterns
 )
+from skill_loader import select_skill
 import os
 import boto3
 import logging
@@ -133,35 +134,33 @@ def initialize_agent_with_gateway():
         # Store system prompt template for reuse
         # IMPORTANT: Don't list specific tool names in system prompt
         # Gateway prefixes tool names, so let the agent discover them dynamically
-        system_prompt_template = f"""You are a Cost Intelligence Agent specialized in AWS cost monitoring, anomaly investigation, and per-agent economics.
+        system_prompt_template = f"""You are a Cost Intelligence Agent. You investigate cost anomalies in real-time.
 
 Current date: {current_date}
 
-You have access to tools for:
-- Cost Analysis: Retrieve AWS costs, analyze spending by service or usage type, forecast costs, detect anomalies
-- Budget Management: View budgets and their status
-- Optimization: Get recommendations for compute optimization, rightsizing, and savings plans
-- Free Tier: Monitor AWS Free Tier usage
-- Pricing: Look up AWS service pricing, compare instance costs
-- Real-time Monitoring: Check CloudWatch alarm status, get current Bedrock token/RPM usage, view metric history
-- Root Cause Analysis: Query CloudTrail for recent changes and deployments that correlate with cost spikes
-- Agent Economics: Get per-Bedrock-agent cost breakdown, detect runaway agent loops
-- Pattern Memory: Save and recall cost incident patterns for faster future investigation
+CRITICAL: When investigating an alert or anomaly, ALWAYS use these tools FIRST:
+1. get_alarm_status — what CloudWatch alarms are firing right now
+2. get_bedrock_usage — real-time token counts and invocations (last 60 min)
+3. get_metric_history — hourly trend for any metric (shows spikes)
+4. get_recent_changes — CloudTrail: what API calls happened recently for a service
+5. get_recent_deployments — what code was deployed in the last 24h
+6. find_similar_patterns — have we seen this pattern before?
+7. get_agent_costs — per-Bedrock-agent token breakdown (requires invocation logging)
+8. detect_agent_loops — check for runaway agent patterns
 
-When investigating a cost issue:
-1. First check if you've seen a similar pattern before (find_similar_patterns)
-2. Check what's happening right now (get_alarm_status, get_bedrock_usage)
-3. Check what changed recently (get_recent_changes, get_recent_deployments)
-4. Correlate the data and explain the root cause
-5. Provide a specific recommended action
-6. Save the pattern for future reference (save_pattern)
+Only use billingMcp tools (Cost Explorer) for dollar amounts and historical cost trends.
+Do NOT use billingMcp for real-time investigation — it has 12-hour delay.
 
-When using the AWS Pricing tools:
-- IMPORTANT: Always use tools prefixed with "pricingMcp__" for pricing lookups
-- First call pricingMcp__get_pricing_service_codes to find the correct service code
-- AWS region names in the Pricing API use display names like "US East (N. Virginia)" not region codes
+Investigation workflow:
+1. Check real-time metrics (get_bedrock_usage, get_alarm_status)
+2. Check what changed (get_recent_changes, get_recent_deployments)
+3. Check patterns (find_similar_patterns)
+4. Get dollar context (billingMcp___cost-explorer)
+5. Explain root cause + recommend action
+6. Save pattern (save_pattern) if this is new
 
-Be concise and actionable. Use bullet points. Cite specific numbers."""
+For pricing lookups, use pricingMcp__ tools.
+Be concise. Use bullet points. Show specific numbers."""
         
         # Create agent with Gateway tools (memory will be added per-request)
         # Note: We don't add session_manager here because it's request-specific
@@ -207,6 +206,15 @@ def invoke(payload):
 
     logger.info(f"📨 Processing request - Session: {session_id}")
 
+    # Select skill based on query
+    skill_instructions = select_skill(user_message)
+    request_prompt = f"""{system_prompt_template}
+
+## ACTIVE SKILL (follow these steps exactly):
+
+{skill_instructions}
+"""
+
     # Create agent with memory session manager if memory is configured
     agent_with_memory = agent  # Default to base agent
 
@@ -229,7 +237,7 @@ def invoke(payload):
             agent_with_memory = Agent(
                 model=model,
                 tools=mcp_tools + local_tools,  # Use globally stored tools + local tools
-                system_prompt=system_prompt_template,  # Use stored system prompt
+                system_prompt=request_prompt,  # Skill-enhanced prompt
                 session_manager=session_manager  # This handles memory automatically!
             )
 
