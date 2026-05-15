@@ -133,7 +133,17 @@ window.investigateAlert=(name)=>{
   const area=document.getElementById('chatArea');
   const empty=area.querySelector('.empty-state');if(empty)empty.remove();
   addMsg(`Investigate: ${name.replace('CostAgent-','')}`,'user');
-  callAgent(`Investigate alarm "${name}". RESPOND CONCISELY:\n**STATUS:** one line\n**IMPACT:** cost/hour\n**CAUSE:** one line\n**TIMELINE:** 3-4 bullet points with times\n**ACTION:** one specific thing to do\nMax 10 lines.`);
+  callAgent(`Investigate alarm "${name}". You are a cost forensics investigator. Be SPECIFIC:
+
+**STATUS:** Is it firing now or resolved? One sentence.
+**IMPACT:** Exact $/hour and $/day. Compare to normal baseline.
+**WHO:** Which specific agent ARN, Lambda function, or IAM role is responsible? Check CloudTrail.
+**WHAT CHANGED:** What deployment or config change triggered this? Give commit time + user.
+**ROOT CAUSE:** One sentence — not "high usage" but WHY (loop? prompt change? new workload?)
+**FIX:** One specific command or action to stop it. Not "monitor" — give me the fix.
+
+If you can't identify WHO, say what's blocking you (e.g. "invocation logging not enabled").
+Do NOT say "monitor" or "investigate further" — give a definitive answer.`);
 };
 
 window.newChat=()=>{sessionId='s-'+Date.now();document.getElementById('chatArea').innerHTML='<div class="empty-state"><h3>Ask anything</h3><p>Costs, agents, anomalies, actions</p></div>'};
