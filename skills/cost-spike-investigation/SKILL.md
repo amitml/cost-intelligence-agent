@@ -1,70 +1,75 @@
 ---
 name: cost-spike-investigation
-description: Investigate cost spikes and anomalies in real-time. Use when a CloudWatch alarm fires, when a user reports unexpected costs, or when asked to investigate why costs increased. Covers Bedrock token spikes, Lambda invocation surges, and general service cost anomalies.
+description: Investigate cost spikes and anomalies. Use when a CloudWatch alarm fires or user asks about a spike. Demands specific evidence, ARNs, session IDs, and exact fix commands.
 ---
 
 # Cost Spike Investigation
 
-Use this skill when investigating any cost anomaly, spike, or alarm.
+You are a senior SRE. Your job is to find WHO caused the spike, WHY, and give the exact command to fix it. Not summaries — evidence.
 
-## Step 1: Check real-time status
+## Step 1: Current state + real-time numbers
 
-Call `get_alarm_status` to see what CloudWatch alarms are currently firing.
-Call `get_bedrock_usage(minutes=60)` to get current token counts and invocations.
+Call `get_alarm_status` and `get_bedrock_usage(minutes=60)`.
+Report: tokens/hour NOW vs tokens/hour YESTERDAY. Calculate exact $/hour.
 
-Report: which alarms are in ALARM state, current token burn rate, estimated cost/hour.
+## Step 2: Find WHO
 
-## Step 2: Get metric history
+Call `check_invocation_logs(hours=2)`.
+From the logs, extract:
+- Agent ARN(s) making calls
+- Session ID(s) 
+- Caller ARN (which Lambda/role is invoking)
+- Token count per call (is one agent using 10x more than others?)
 
-Call `get_metric_history(namespace='AWS/Bedrock', metric_name='InputTokenCount', hours=6)` to see the trend.
+If logs return "not enabled", say: **BLIND SPOT** and give this command:
+```
+aws bedrock put-model-invocation-logging-configuration --logging-config '{"cloudWatchConfig":{"logGroupName":"/aws/bedrock/modelinvocations","roleArn":"YOUR_ROLE_ARN"},"textDataDeliveryEnabled":true}'
+```
 
-Compare current hour to previous hours. Calculate the multiplier (e.g., "4x normal").
+## Step 3: Find WHAT CHANGED
 
-## Step 3: Identify what changed
+Call `get_recent_deployments(hours=6)` and `get_recent_changes(service_name='bedrock', hours=6)`.
+Call `check_bedrock_config_changes(hours=24)`.
 
-Call `get_recent_deployments(hours=24)` to find code changes.
-Call `get_recent_changes(service_name='bedrock', hours=6)` for Bedrock-specific API activity.
+Look for:
+- New agent created? → that's the cause
+- Function code updated? → prompt change likely
+- New model access? → someone enabled expensive model
+- Multiple sources calling? → unexpected cross-account
 
-Correlate: did a deployment happen shortly before the spike started?
+## Step 4: Connect the dots
 
-## Step 4: Check for known patterns
+Write ONE sentence connecting: [deployment/change] → [agent/function] → [spike]
 
-Call `find_similar_patterns(pattern_type='bedrock-token-spike')` to see if we've seen this before.
+Example: "UpdateFunctionCode by user MCP at 02:20 UTC changed the prompt in Lambda cost-intelligence-bridge, which triggered agent e92b6952 into a loop, causing 5.5M tokens in 8 hours."
 
-If a pattern matches, reference the previous root cause and resolution.
+## Step 5: Evidence block
 
-## Step 5: Get dollar context
+Present ALL evidence you found:
+```
+EVIDENCE:
+- Agent ARN: arn:aws:bedrock:us-east-1:463440883924:agent/XXXXX
+- Lambda: function-name-here
+- Caller: arn:aws:iam::463440883924:role/role-name
+- Session IDs: sess-123, sess-456
+- Trigger: UpdateFunctionCode at HH:MM by user X
+- Token spike: X tokens/hour → Y tokens/hour (Nx increase)
+```
 
-Only NOW use `billingMcp___cost-explorer` to get the dollar amount for context.
-Compare today's cost to yesterday and last week.
+## Step 6: Fix command
 
-## Step 6: Determine root cause and recommend action
-
-Based on findings, provide:
-1. **Root cause** — what specifically is causing the spike (which resource, what change)
-2. **Cost impact** — current burn rate and projected daily/weekly cost if unchecked
-3. **Recommended actions** (ranked by urgency):
-   - Immediate: throttle, revert, or cap (stop the bleeding)
-   - Short-term: fix the underlying issue
-   - Long-term: add monitoring/guardrails to prevent recurrence
+Give the EXACT CLI command. Not "consider" or "monitor". Examples:
+- `aws lambda put-function-concurrency --function-name X --reserved-concurrent-executions 0`
+- `aws bedrock-agent update-agent --agent-id X --idle-session-ttl 60`
+- Revert: `aws lambda update-function-code --function-name X --s3-bucket Y --s3-key previous-version.zip`
 
 ## Step 7: Save pattern
 
-If this is a new pattern, call `save_pattern` with the type, root cause, resolution, and cost impact for future reference.
+Call `save_pattern` with what you found for next time.
 
-## Remediation options to suggest
-
-- **Throttle Lambda concurrency**: Reduce concurrent executions to limit invocations
-- **Add Bedrock token budget**: Set max_tokens on model calls
-- **Revert deployment**: If a recent deploy caused it, suggest rollback
-- **Add CloudWatch alarm**: If no alarm existed for this metric, suggest creating one
-- **Set AWS Budget alert**: If no budget exists, suggest creating one at current spend + 20%
-
-## Actions you can take (ask user permission first)
-
-- `send_notification` — Alert the agent owner with your findings
-- `stop_agent_invocations(function_name, 0)` — Stop a runaway Lambda (CAUTION: affects production)
-- `set_budget_alert(monthly_limit)` — Create a budget to prevent future overspend
-- `check_invocation_logs` — Get detailed per-call logs if logging is enabled
-
-IMPORTANT: Before taking any destructive action (stop_agent_invocations), explain what it will do and ask the user to confirm.
+## RULES:
+- NEVER say "monitor" or "investigate further" — you ARE the investigator
+- NEVER give generic summaries — give ARNs, session IDs, exact numbers
+- If you can't find WHO, explain exactly what's blocking you and how to fix it
+- If the alarm fired 20 times today, explain WHY it keeps recurring (not just the latest one)
+- Connect ALL spikes to a single root cause if possible
