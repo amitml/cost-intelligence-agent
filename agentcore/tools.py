@@ -98,25 +98,30 @@ def get_metric_history(namespace: str, metric_name: str, hours: int = 6) -> str:
 @tool
 def get_recent_changes(service_name: str, hours: int = 6) -> str:
     """Get recent API changes for a service from CloudTrail. Use to correlate cost spikes with changes.
-    Example service_name: 'bedrock', 'lambda', 'ec2', 'rds'"""
+    Example service_name: 'bedrock', 'lambda', 'ec2', 'rds'
+    For bedrock, checks bedrock + bedrock-runtime + bedrock-agentcore."""
     start = datetime.now(timezone.utc) - timedelta(hours=hours)
     
-    response = ct.lookup_events(
-        LookupAttributes=[{
-            'AttributeKey': 'EventSource',
-            'AttributeValue': f'{service_name}.amazonaws.com'
-        }],
-        StartTime=start, MaxResults=15
-    )
+    sources = [f'{service_name}.amazonaws.com']
+    if service_name == 'bedrock':
+        sources = ['bedrock.amazonaws.com', 'bedrock-runtime.amazonaws.com', 'bedrock-agentcore.amazonaws.com']
     
     events = []
-    for e in response.get('Events', []):
-        events.append({
-            'time': e['EventTime'].strftime('%H:%M'),
-            'event': e['EventName'],
-            'user': e.get('Username', 'unknown')
-        })
-    return json.dumps(events) if events else f"No changes found for {service_name} in last {hours}h."
+    for source in sources:
+        response = ct.lookup_events(
+            LookupAttributes=[{'AttributeKey': 'EventSource', 'AttributeValue': source}],
+            StartTime=start, MaxResults=10
+        )
+        for e in response.get('Events', []):
+            events.append({
+                'time': e['EventTime'].strftime('%H:%M'),
+                'event': e['EventName'],
+                'user': e.get('Username', 'unknown'),
+                'source': source.split('.')[0]
+            })
+    
+    events.sort(key=lambda x: x['time'], reverse=True)
+    return json.dumps(events[:20]) if events else f"No changes found for {service_name} in last {hours}h."
 
 
 @tool
