@@ -14,7 +14,8 @@ from tools import (
     get_alarm_status, get_bedrock_usage, get_metric_history,
     get_recent_changes, get_recent_deployments,
     get_agent_costs, detect_agent_loops,
-    save_pattern, find_similar_patterns
+    save_pattern, find_similar_patterns,
+    send_notification, stop_agent_invocations, check_invocation_logs, set_budget_alert
 )
 from skill_loader import select_skill
 import os
@@ -87,7 +88,8 @@ local_tools = [
     get_alarm_status, get_bedrock_usage, get_metric_history,
     get_recent_changes, get_recent_deployments,
     get_agent_costs, detect_agent_loops,
-    save_pattern, find_similar_patterns
+    save_pattern, find_similar_patterns,
+    send_notification, stop_agent_invocations, check_invocation_logs, set_budget_alert
 ]
 
 # Global MCP client to keep connection alive

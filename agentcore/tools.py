@@ -278,3 +278,116 @@ def find_similar_patterns(pattern_type: str) -> str:
         return json.dumps(items, default=str) if items else "No similar patterns found. This is new."
     except Exception as e:
         return f"Error: {str(e)}"
+
+
+# ============================================================
+# ACTION TOOLS - Remediation actions the agent can take
+# ============================================================
+
+@tool
+def send_notification(subject: str, message: str) -> str:
+    """Send a notification to the agent owner via SNS email.
+    Use when you find something urgent that needs human attention."""
+    try:
+        sns_client = boto3.client('sns')
+        sns_client.publish(
+            TopicArn='arn:aws:sns:us-east-1:463440883924:cost-intelligence-alerts',
+            Subject=subject[:100],
+            Message=message
+        )
+        return f"Notification sent: {subject}"
+    except Exception as e:
+        return f"Failed to send notification: {str(e)}"
+
+
+@tool
+def stop_agent_invocations(function_name: str, max_concurrency: int = 0) -> str:
+    """Throttle or stop a Lambda function that's driving excessive Bedrock costs.
+    Set max_concurrency=0 to completely stop it, or a low number to throttle.
+    CAUTION: This will affect production traffic."""
+    try:
+        lambda_client = boto3.client('lambda')
+        lambda_client.put_function_concurrency(
+            FunctionName=function_name,
+            ReservedConcurrentExecutions=max_concurrency
+        )
+        action = "stopped" if max_concurrency == 0 else f"throttled to {max_concurrency} concurrent"
+        return f"Lambda '{function_name}' {action}. To undo: set concurrency back to normal."
+    except Exception as e:
+        return f"Failed to throttle: {str(e)}"
+
+
+@tool
+def check_invocation_logs(hours: int = 1) -> str:
+    """Check Bedrock model invocation logs for recent calls.
+    Shows what models are being called, by whom, and token counts.
+    Requires Bedrock invocation logging to be enabled."""
+    start = int((datetime.now(timezone.utc) - timedelta(hours=hours)).timestamp())
+    end = int(datetime.now(timezone.utc).timestamp())
+
+    query = """
+    fields @timestamp, modelId, input.inputTokenCount, output.outputTokenCount
+    | sort @timestamp desc
+    | limit 20
+    """
+
+    try:
+        response = logs_client.start_query(
+            logGroupName='/aws/bedrock/modelinvocations',
+            startTime=start, endTime=end, queryString=query
+        )
+        query_id = response['queryId']
+        for _ in range(30):
+            result = logs_client.get_query_results(queryId=query_id)
+            if result['status'] == 'Complete':
+                break
+            time.sleep(1)
+
+        entries = []
+        for row in result.get('results', []):
+            fields = {f['field']: f['value'] for f in row}
+            entries.append({
+                'time': fields.get('@timestamp', ''),
+                'model': fields.get('modelId', ''),
+                'input_tokens': fields.get('input.inputTokenCount', '0'),
+                'output_tokens': fields.get('output.outputTokenCount', '0')
+            })
+        return json.dumps(entries) if entries else "No invocation logs found. Enable Bedrock model invocation logging."
+    except logs_client.exceptions.ResourceNotFoundException:
+        return "Log group not found. Enable Bedrock model invocation logging in console."
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+
+@tool
+def set_budget_alert(monthly_limit: int, alert_threshold: int = 80) -> str:
+    """Create or update an AWS Budget to alert when spending approaches a limit.
+    monthly_limit: dollar amount for the budget
+    alert_threshold: percentage at which to alert (default 80%)"""
+    try:
+        budgets = boto3.client('budgets')
+        account_id = boto3.client('sts').get_caller_identity()['Account']
+        budgets.create_budget(
+            AccountId=account_id,
+            Budget={
+                'BudgetName': 'CostOp-Bedrock-Budget',
+                'BudgetLimit': {'Amount': str(monthly_limit), 'Unit': 'USD'},
+                'TimeUnit': 'MONTHLY',
+                'BudgetType': 'COST',
+                'CostFilters': {'Service': ['Amazon Bedrock']}
+            },
+            NotificationsWithSubscribers=[{
+                'Notification': {
+                    'NotificationType': 'ACTUAL',
+                    'ComparisonOperator': 'GREATER_THAN',
+                    'Threshold': alert_threshold,
+                    'ThresholdType': 'PERCENTAGE'
+                },
+                'Subscribers': [{'SubscriptionType': 'SNS', 'Address': 'arn:aws:sns:us-east-1:463440883924:cost-intelligence-alerts'}]
+            }]
+        )
+        return f"Budget created: ${monthly_limit}/month for Bedrock. Alert at {alert_threshold}%."
+    except Exception as e:
+        if 'DuplicateRecordException' in str(e):
+            return f"Budget 'CostOp-Bedrock-Budget' already exists."
+        return f"Error creating budget: {str(e)}"
