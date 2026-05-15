@@ -456,3 +456,115 @@ def check_bedrock_config_changes(hours: int = 24) -> str:
         return f"No risky Bedrock config changes in the last {hours}h. All quiet."
     
     return "Bedrock Config Changes (last {}h):\n".format(hours) + "\n".join(findings)
+
+
+# ============================================================
+# COST DATA TOOLS - Replaces 28 MCP tools with 4 direct calls
+# ============================================================
+
+ce_client = boto3.client('ce')
+budgets_client = boto3.client('budgets')
+
+
+@tool
+def get_cost_and_usage(days: int = 7, service: str = '', group_by: str = 'SERVICE') -> str:
+    """Get AWS cost and usage data. 
+    days: how many days back (default 7)
+    service: filter to specific service (e.g. 'Amazon Bedrock') or empty for all
+    group_by: SERVICE, USAGE_TYPE, OPERATION, REGION, LINKED_ACCOUNT"""
+    end = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+    start = (datetime.now(timezone.utc) - timedelta(days=days)).strftime('%Y-%m-%d')
+    
+    kwargs = {
+        'TimePeriod': {'Start': start, 'End': end},
+        'Granularity': 'DAILY',
+        'Metrics': ['BlendedCost', 'UsageQuantity'],
+        'GroupBy': [{'Type': 'DIMENSION', 'Key': group_by}]
+    }
+    
+    if service:
+        kwargs['Filter'] = {'Dimensions': {'Key': 'SERVICE', 'Values': [service]}}
+    
+    try:
+        response = ce_client.get_cost_and_usage(**kwargs)
+        results = []
+        for period in response.get('ResultsByTime', []):
+            date = period['TimePeriod']['Start']
+            for group in period.get('Groups', []):
+                key = group['Keys'][0]
+                cost = float(group['Metrics']['BlendedCost']['Amount'])
+                if cost > 0.01:
+                    results.append({'date': date, 'key': key, 'cost': round(cost, 2)})
+        return json.dumps(results) if results else "No cost data found."
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+
+@tool
+def get_cost_anomalies(days: int = 7) -> str:
+    """Get cost anomalies detected by AWS Cost Anomaly Detection."""
+    end = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+    start = (datetime.now(timezone.utc) - timedelta(days=days)).strftime('%Y-%m-%d')
+    
+    try:
+        response = ce_client.get_anomalies(
+            DateInterval={'StartDate': start, 'EndDate': end},
+            MaxResults=10
+        )
+        anomalies = []
+        for a in response.get('Anomalies', []):
+            anomalies.append({
+                'id': a.get('AnomalyId', ''),
+                'start': a.get('AnomalyStartDate', ''),
+                'end': a.get('AnomalyEndDate', ''),
+                'score': a.get('AnomalyScore', {}).get('CurrentScore', 0),
+                'impact': a.get('Impact', {}).get('TotalImpact', 0),
+                'service': a.get('RootCauses', [{}])[0].get('Service', 'Unknown') if a.get('RootCauses') else 'Unknown'
+            })
+        return json.dumps(anomalies) if anomalies else "No anomalies detected."
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+
+@tool
+def get_budgets() -> str:
+    """Get all AWS Budgets and their current status (actual vs limit)."""
+    try:
+        account_id = boto3.client('sts').get_caller_identity()['Account']
+        response = budgets_client.describe_budgets(AccountId=account_id, MaxResults=10)
+        budgets = []
+        for b in response.get('Budgets', []):
+            budgets.append({
+                'name': b['BudgetName'],
+                'limit': f"${b['BudgetLimit']['Amount']}/{b['TimeUnit'].lower()}",
+                'actual': f"${b.get('CalculatedSpend', {}).get('ActualSpend', {}).get('Amount', '0')}",
+                'forecast': f"${b.get('CalculatedSpend', {}).get('ForecastedSpend', {}).get('Amount', '0')}",
+                'type': b['BudgetType']
+            })
+        return json.dumps(budgets) if budgets else "No budgets configured."
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+
+@tool
+def get_cost_forecast(months: int = 1) -> str:
+    """Get cost forecast for the next month. Shows projected spend."""
+    start = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+    end = (datetime.now(timezone.utc) + timedelta(days=30*months)).strftime('%Y-%m-%d')
+    
+    try:
+        response = ce_client.get_cost_forecast(
+            TimePeriod={'Start': start, 'End': end},
+            Metric='BLENDED_COST',
+            Granularity='MONTHLY'
+        )
+        total = response.get('Total', {}).get('Amount', '0')
+        results = []
+        for period in response.get('ForecastResultsByTime', []):
+            results.append({
+                'period': period['TimePeriod']['Start'],
+                'mean': round(float(period['MeanValue']), 2)
+            })
+        return json.dumps({'total_forecast': round(float(total), 2), 'breakdown': results})
+    except Exception as e:
+        return f"Error: {str(e)}"
