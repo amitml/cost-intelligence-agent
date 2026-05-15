@@ -16,7 +16,8 @@ from tools import (
     get_agent_costs, detect_agent_loops,
     save_pattern, find_similar_patterns,
     send_notification, stop_agent_invocations, check_invocation_logs, set_budget_alert,
-    check_bedrock_config_changes
+    check_bedrock_config_changes,
+    get_cost_and_usage, get_cost_anomalies, get_budgets, get_cost_forecast
 )
 from skill_loader import select_skill
 from slack_handler import start_slack_listener, set_agent_fn
@@ -93,7 +94,8 @@ local_tools = [
     get_agent_costs, detect_agent_loops,
     save_pattern, find_similar_patterns,
     send_notification, stop_agent_invocations, check_invocation_logs, set_budget_alert,
-    check_bedrock_config_changes
+    check_bedrock_config_changes,
+    get_cost_and_usage, get_cost_anomalies, get_budgets, get_cost_forecast
 ]
 
 # Global MCP client to keep connection alive
@@ -172,7 +174,7 @@ Be concise. Use bullet points. Show specific numbers."""
         # Note: We don't add session_manager here because it's request-specific
         agent = Agent(
             model=model,
-            tools=mcp_tools + local_tools,
+            tools=local_tools,
             system_prompt=system_prompt_template
         )
         
@@ -242,7 +244,7 @@ def invoke(payload):
             # Create agent with session manager (memory handled automatically)
             agent_with_memory = Agent(
                 model=model,
-                tools=mcp_tools + local_tools,  # Use globally stored tools + local tools
+                tools=local_tools,  # Use globally stored tools + local tools
                 system_prompt=request_prompt,  # Skill-enhanced prompt
                 session_manager=session_manager  # This handles memory automatically!
             )

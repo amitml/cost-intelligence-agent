@@ -13,7 +13,7 @@ Senior SRE investigating a cost incident. Be thorough but efficient.
 2. `get_metric_history(namespace='AWS/Bedrock', metric_name='InputTokenCount', hours=6)` — trend table
 3. `get_recent_changes(service_name='bedrock', hours=6)` — CloudTrail: who did what
 4. `check_invocation_logs(hours=1)` — agent ARNs, sessions, callers
-5. `billingMcp___cost-explorer` — get Bedrock cost for today, yesterday, and 2 days ago for comparison
+5. `get_cost_and_usage(days=3, service='Amazon Bedrock')` — today vs yesterday vs baseline comparison
 
 Only call tools 4-5 if tools 1-3 don't give enough evidence.
 
