@@ -33,6 +33,8 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 COPY agent_runtime.py .
 COPY streamable_http_sigv4.py .
 COPY tools.py .
+COPY skill_loader.py .
+COPY skills/ ./skills/
 
 # Set ownership to non-root user
 RUN chown -R appuser:appuser /app
