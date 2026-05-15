@@ -34,6 +34,7 @@ COPY agent_runtime.py .
 COPY streamable_http_sigv4.py .
 COPY tools.py .
 COPY skill_loader.py .
+COPY slack_handler.py .
 COPY skills/ ./skills/
 
 # Set ownership to non-root user
