@@ -290,12 +290,17 @@ def send_notification(subject: str, message: str) -> str:
     Use when you find something urgent that needs human attention."""
     try:
         sns_client = boto3.client('sns')
+        topic_arn = 'arn:aws:sns:us-east-1:463440883924:cost-intelligence-alerts'
+        # Get subscribers
+        subs = sns_client.list_subscriptions_by_topic(TopicArn=topic_arn)
+        recipients = [s['Endpoint'] for s in subs.get('Subscriptions', []) if s['Protocol'] in ('email', 'https')]
+        
         sns_client.publish(
-            TopicArn='arn:aws:sns:us-east-1:463440883924:cost-intelligence-alerts',
+            TopicArn=topic_arn,
             Subject=subject[:100],
             Message=message
         )
-        return f"Notification sent: {subject}"
+        return f"✅ Notification sent.\n📧 Recipients: {', '.join(recipients)}\n📋 Subject: {subject}\n💬 Message: {message[:200]}"
     except Exception as e:
         return f"Failed to send notification: {str(e)}"
 
@@ -391,3 +396,50 @@ def set_budget_alert(monthly_limit: int, alert_threshold: int = 80) -> str:
         if 'DuplicateRecordException' in str(e):
             return f"Budget 'CostOp-Bedrock-Budget' already exists."
         return f"Error creating budget: {str(e)}"
+
+
+@tool
+def check_bedrock_config_changes(hours: int = 24) -> str:
+    """Check for risky Bedrock configuration changes: new agents created, new model access enabled,
+    cross-account calls, or unusual API patterns. Use this to catch things that WILL cost money soon."""
+    start = datetime.now(timezone.utc) - timedelta(hours=hours)
+    
+    risky_events = [
+        'CreateAgent', 'CreateAgentVersion', 'UpdateAgent',
+        'CreateModelAccessRequest', 'PutModelInvocationLoggingConfiguration',
+        'CreateGuardrail', 'DeleteGuardrail',
+        'InvokeModel', 'InvokeModelWithResponseStream'
+    ]
+    
+    response = ct.lookup_events(
+        LookupAttributes=[{
+            'AttributeKey': 'EventSource',
+            'AttributeValue': 'bedrock.amazonaws.com'
+        }],
+        StartTime=start, MaxResults=30
+    )
+    
+    findings = []
+    invoke_sources = {}
+    
+    for e in response.get('Events', []):
+        name = e['EventName']
+        user = e.get('Username', 'unknown')
+        time_str = e['EventTime'].strftime('%H:%M')
+        
+        if name in ['CreateAgent', 'CreateAgentVersion', 'UpdateAgent']:
+            findings.append(f"⚠️ {time_str} — {name} by {user} (new/modified agent = new costs)")
+        elif name == 'CreateModelAccessRequest':
+            findings.append(f"🔴 {time_str} — New model access requested by {user}")
+        elif name in ['InvokeModel', 'InvokeModelWithResponseStream', 'Converse', 'ConverseStream']:
+            invoke_sources[user] = invoke_sources.get(user, 0) + 1
+    
+    # Flag unusual invoke sources
+    for user, count in invoke_sources.items():
+        if count > 20:
+            findings.append(f"📊 {user}: {count} model invocations in {hours}h")
+    
+    if not findings:
+        return f"No risky Bedrock config changes in the last {hours}h. All quiet."
+    
+    return "Bedrock Config Changes (last {}h):\n".format(hours) + "\n".join(findings)
