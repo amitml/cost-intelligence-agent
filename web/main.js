@@ -69,6 +69,7 @@ async function loadAlerts(){
   alertList.innerHTML='<div style="padding:16px;color:#9CA3AF;font-size:12px">Loading...</div>';
   try{
     const session=await fetchAuthSession();
+    // Get ALL alarms (not just ALARM state)
     const body='Action=DescribeAlarms&Version=2010-08-01&AlarmNamePrefix=CostAgent';
     const signer=new SignatureV4({service:'monitoring',region:REGION,credentials:session.credentials,sha256:Sha256});
     const signed=await signer.sign({method:'POST',hostname:`monitoring.${REGION}.amazonaws.com`,path:'/',headers:{'Content-Type':'application/x-www-form-urlencoded',host:`monitoring.${REGION}.amazonaws.com`},body});
@@ -76,15 +77,50 @@ async function loadAlerts(){
     const xml=await res.text();
     const names=[...xml.matchAll(/<AlarmName>(.*?)<\/AlarmName>/g)];
     const states=[...xml.matchAll(/<StateValue>(.*?)<\/StateValue>/g)];
-    let html='';
+    const reasons=[...xml.matchAll(/<StateReason>(.*?)<\/StateReason>/g)];
+    const timestamps=[...xml.matchAll(/<StateUpdatedTimestamp>(.*?)<\/StateUpdatedTimestamp>/g)];
+    
+    let liveHtml='';
+    let historyHtml='';
+    const now=new Date();
+    
     names.forEach((n,i)=>{
       const state=states[i]?states[i][1]:'OK';
       const name=n[1].replace('CostAgent-','');
-      if(state==='ALARM') html+=`<div class="alert-item" onclick="investigateAlert('${n[1]}')"><div class="title"><span class="severity critical"></span>${name}</div><div class="meta">🔴 ALARM — click to investigate</div></div>`;
-      else html+=`<div class="alert-item"><div class="title"><span class="severity info"></span>${name}</div><div class="meta">✅ OK</div></div>`;
+      const ts=timestamps[i]?new Date(timestamps[i][1]):now;
+      const ago=getTimeAgo(ts);
+      const reason=(reasons[i]?reasons[i][1]:'').replace(/&lt;/g,'<').replace(/&gt;/g,'>').substring(0,80);
+      
+      if(state==='ALARM'){
+        liveHtml+=`<div class="alert-item" onclick="investigateAlert('${n[1]}')"><div class="title"><span class="severity critical"></span>${name}</div><div class="meta">🔴 ALARM • ${ago} — click to investigate</div></div>`;
+      }
+      // Show in history if state changed today
+      const isToday=ts.toDateString()===now.toDateString();
+      const isYesterday=ts.toDateString()===new Date(now-86400000).toDateString();
+      if(isToday||isYesterday){
+        const day=isToday?'Today':'Yesterday';
+        const sev=state==='ALARM'?'critical':'info';
+        historyHtml+=`<div class="alert-item" onclick="investigateAlert('${n[1]}')"><div class="title"><span class="severity ${sev}"></span>${name}</div><div class="meta">${day} ${ts.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})} • ${state}</div></div>`;
+      }
     });
-    alertList.innerHTML=html||'<div style="padding:16px;color:#10B981;font-size:12px">✅ All clear</div>';
+    
+    let html='';
+    if(liveHtml) html+=`<div style="padding:8px 14px 4px;font-size:10px;color:#DC2626;font-weight:600;text-transform:uppercase">🔴 Live Alarms</div>${liveHtml}`;
+    else html+='<div style="padding:10px 14px;font-size:11px;color:#10B981">✅ All clear right now</div>';
+    html+=`<div style="padding:8px 14px 4px;font-size:10px;color:#6B7280;font-weight:600;text-transform:uppercase;border-top:1px solid #F3F4F6;margin-top:8px">📋 Recent Activity</div>`;
+    html+=historyHtml||'<div style="padding:8px 14px;font-size:11px;color:#9CA3AF">No alarm changes today</div>';
+    
+    alertList.innerHTML=html;
   }catch(e){alertList.innerHTML='<div style="padding:16px;color:#9CA3AF;font-size:12px">Could not load</div>'}
+}
+
+function getTimeAgo(date){
+  const mins=Math.floor((Date.now()-date.getTime())/60000);
+  if(mins<1)return 'just now';
+  if(mins<60)return mins+'m ago';
+  const hrs=Math.floor(mins/60);
+  if(hrs<24)return hrs+'h ago';
+  return Math.floor(hrs/24)+'d ago';
 }
 
 window.investigateAlert=(name)=>{
