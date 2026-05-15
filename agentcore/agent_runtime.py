@@ -55,7 +55,8 @@ else:
 # Initialize Bedrock model
 model = BedrockModel(
     model_id=MODEL_ID,
-    region_name=AWS_REGION
+    region_name=AWS_REGION,
+    max_tokens=8192
 )
 
 # Get AWS credentials for SigV4 signing
