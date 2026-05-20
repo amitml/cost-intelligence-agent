@@ -135,7 +135,6 @@ aws cloudformation delete-stack --stack-name CostOp --region us-east-1
 
 - [Full deployment guide](cloudformation/README.md)
 - [ECR Public Image](https://gallery.ecr.aws/y3a7j1y9/amitml/costop-agent)
-- [Product Paper](PRODUCT_PAPER.md)
 
 ---
 
