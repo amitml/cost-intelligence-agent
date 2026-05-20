@@ -36,22 +36,29 @@ Check your email for temporary credentials. Open the Amplify URL printed by the 
 
 | Parameter | Default | Description |
 |---|---|---|
-| AdminEmail | (required) | Login credentials + alert notifications |
-| DefaultModel | Sonnet | Sonnet (deeper reasoning) or Haiku (faster/cheaper) |
-| EnableTokenAlarm | Yes | Alert on input token spikes |
-| TokenAlarmThreshold | 200000 | Tokens per 5-min window |
-| EnableRPMAlarm | Yes | Alert on requests per minute |
-| RPMAlarmThreshold | 100 | Requests per minute |
-| EnableTPMAlarm | Yes | Alert on TPM quota usage |
-| EnableThrottleAlarm | Yes | Alert on throttled requests |
-| EnableErrorAlarm | Yes | Alert on invocation errors |
-| MonthlyBudgetLimit | 100 | Monthly budget in USD (0 = no budget) |
-| EnableCostAnomalyDetection | Yes | AWS Cost Anomaly Detection alerts |
-| EnableInvocationLogging | Yes | Log all Bedrock invocations (enables per-agent tracking) |
-| EnableSlack | No | Slack integration |
-| SlackBotToken | | Bot token (if Slack enabled) |
-| SlackSigningSecret | | Signing secret (if Slack enabled) |
-| SlackChannel | | Channel ID (if Slack enabled) |
+| **AdminEmail** | (required) | Login credentials + alert notifications |
+| **DefaultModel** | Sonnet | Sonnet (deeper reasoning) or Haiku (faster/cheaper) |
+| **EnableTokenAlarm** | Yes | Alert on input token spikes |
+| **TokenAlarmThreshold** | 200000 | Tokens per 5-min window |
+| **EnableRPMAlarm** | Yes | Alert on requests per minute |
+| **RPMAlarmThreshold** | 100 | Requests per minute |
+| **EnableTPMAlarm** | Yes | Alert on TPM quota usage |
+| **TPMAlarmThreshold** | 80 | TPM quota usage percentage |
+| **EnableThrottleAlarm** | Yes | Alert on throttled requests |
+| **ThrottleAlarmThreshold** | 5 | Throttled requests per minute |
+| **EnableErrorAlarm** | Yes | Alert on invocation errors |
+| **ErrorAlarmThreshold** | 10 | Client errors per 5 minutes |
+| **MonthlyBudgetLimit** | 100 | Monthly budget in USD (0 = no budget) |
+| **EnableCostAnomalyDetection** | Yes | AWS Cost Anomaly Detection alerts |
+| **EnableInvocationLogging** | Yes | Log all Bedrock invocations |
+| **MemoryRetentionDays** | 30 | Days to keep conversation history (7-365) |
+| **InvocationLogGroup** | (empty) | Existing log group name (leave empty to create) |
+| **SNSTopicArn** | (empty) | Existing SNS topic ARN (leave empty to create) |
+| **CloudWatchAlarms** | (empty) | Leave empty to create. Enter EXISTING if you have alarms. |
+| **EnableSlack** | No | Slack integration |
+| **SlackBotToken** | | Bot token (if Slack enabled) |
+| **SlackSigningSecret** | | Signing secret (if Slack enabled) |
+| **SlackChannel** | | Channel ID (if Slack enabled) |
 
 ---
 
