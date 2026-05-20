@@ -932,15 +932,15 @@ Resources:
                   resp = urllib.request.urlopen(ui_url, timeout=30)
                   ui_zip_data = resp.read()
                   # Inject config into main.js inside the zip
-                  config_line = f"window.COSTOP_CONFIG={{userPoolId:'{props['UserPoolId']}',clientId:'{props['ClientId']}',identityPoolId:'{props['IdentityPoolId']}',agentArn:'{props['AgentArn']}',region:'{props['Region']}',investigationsTable:'{props['StackName']}-investigations',alarmPrefix:'{props['StackName']}'}};"
+                  config_js = f"window.COSTOP_CONFIG={{userPoolId:'{props['UserPoolId']}',clientId:'{props['ClientId']}',identityPoolId:'{props['IdentityPoolId']}',agentArn:'{props['AgentArn']}',region:'{props['Region']}',investigationsTable:'{props['StackName']}-investigations',alarmPrefix:'{props['StackName']}'}};"
                   buf = io.BytesIO(ui_zip_data)
                   out_buf = io.BytesIO()
                   with zipfile.ZipFile(buf, 'r') as zin, zipfile.ZipFile(out_buf, 'w') as zout:
                       for item in zin.namelist():
                           data = zin.read(item)
-                          if item.endswith('.js') and b'userPoolId' in data:
-                              # Append config at end
-                              data = data + b'\n' + config_line.encode()
+                          if item == 'index.html':
+                              # Inject config script BEFORE the main.js script tag
+                              data = data.replace(b'<script type="module"', f'<script>{config_js}</script>\n<script type="module"'.encode())
                           zout.writestr(item, data)
                   # Deploy to Amplify
                   amplify = boto3.client('amplify', region_name=props['Region'])
