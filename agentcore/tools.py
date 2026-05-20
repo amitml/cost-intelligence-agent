@@ -1,3 +1,5 @@
+# CostOp Intelligence Agent - Tools
+# Created by amitml (https://github.com/amitml)
 """
 CostOp Tools - Refactored (12 combined tools from 36)
 """
