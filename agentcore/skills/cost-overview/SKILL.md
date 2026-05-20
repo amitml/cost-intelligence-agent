@@ -1,39 +1,48 @@
 ---
 name: cost-overview
-description: Provide a summary of current AWS costs, budget status, and trends. Use when asked general questions like "what are my costs", "am I over budget", "show me spending", or "cost summary".
+description: Provide a summary of current AWS costs, budget status, and trends.
 ---
 
 # Cost Overview
 
-Use this skill for general cost questions that don't involve investigating a specific spike.
+Use this skill for general cost questions.
 
-## Step 1: Get current spend
+## Steps:
+1. `get_cost_and_usage(days=7)` — this week's spend by service
+2. `get_budgets()` — budget status
+3. `get_alarm_status()` — any active alarms
+4. `get_cost_forecast()` — projected month-end
 
-Use `billingMcp___cost-explorer` to get:
-- This month's spend (MTD)
-- Last month's total
-- Daily breakdown for the last 7 days
+## Output format
 
-## Step 2: Check budget status
+Respond with a JSON object wrapped in ```json fences. No text before or after.
 
-Use `billingMcp___budgets` to see if any budgets are set and their current status.
+```json
+{
+  "type": "overview",
+  "severity": "info|warning|critical",
+  "summary": "MTD $X, projected $Y/month, [over/under] budget",
+  "findings": [
+    {"label": "Month-to-date", "value": "$X", "status": "ok|warning|danger"},
+    {"label": "Projected month-end", "value": "$X", "status": "ok|warning|danger"},
+    {"label": "Budget status", "value": "X% used", "status": "ok|warning|danger"},
+    {"label": "Top service", "value": "ServiceName — $X", "status": "ok|warning"},
+    {"label": "vs Last month", "value": "+X% or -X%", "status": "ok|warning|danger"}
+  ],
+  "timeline": [
+    {"time": "May 10", "event": "$X — normal"},
+    {"time": "May 11", "event": "$X — spike detected"}
+  ],
+  "actions": [
+    {"label": "Investigate top service", "prompt": "Investigate why [service] costs are high", "destructive": false},
+    {"label": "Set budget", "prompt": "Set budget alert at $X/month", "destructive": false}
+  ],
+  "blind_spots": null
+}
+```
 
-## Step 3: Check for active anomalies
-
-Call `get_alarm_status` to see if any cost-related alarms are firing right now.
-Use `billingMcp___cost-anomaly` to check for detected anomalies.
-
-## Step 4: Present summary
-
-Format as:
-- **MTD spend**: $X (Y% of budget)
-- **Projected month-end**: $Z
-- **Top 5 services** with amounts
-- **Anomalies**: any active alerts
-- **Trend**: up/down vs last month, percentage change
-
-## Step 5: Proactive recommendations
-
-If spend is >80% of budget: warn and suggest review
-If a service grew >50% month-over-month: flag it
-If Bedrock is top service: mention agent economics review is available
+## Rules:
+- timeline: daily spend for last 5-7 days
+- findings: always include MTD, projected, budget status, top service, trend
+- If spend >80% of budget: severity=warning. If >100%: severity=critical.
+- If a service grew >50% MoM: flag it in findings with status=danger.

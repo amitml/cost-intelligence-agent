@@ -1,59 +1,55 @@
 ---
 name: cost-spike-investigation
-description: Investigate cost spikes and anomalies. Use when a CloudWatch alarm fires or user asks about a spike.
+description: Investigate cost spikes and anomalies using hypothesis-driven reasoning with evidence ledger.
 ---
 
 # Cost Spike Investigation
 
-Senior SRE investigating a cost incident. Be thorough but efficient.
+## PROTOCOL
 
-## Tools to call (4-5 max):
+1. ASSESS: Call get_monitoring_data('alarms') + get_monitoring_data('bedrock_usage'). Write evidence.
+2. HYPOTHESIZE: Form 2-3 hypotheses based on evidence.
+3. TEST: Call 1-2 tools to test top hypothesis. Write evidence.
+4. ATTRIBUTE: WHO (caller ARN), WHAT (API + tokens), WHEN (timeline), WHY (trigger), IMPACT ($).
+5. CONCLUDE: Only when at least one hypothesis is CONFIRMED.
 
-1. `get_bedrock_usage(minutes=60)` — current token rate and cost
-2. `get_metric_history(namespace='AWS/Bedrock', metric_name='InputTokenCount', hours=6)` — trend table
-3. `get_recent_changes(service_name='bedrock', hours=6)` — CloudTrail: who did what
-4. `check_invocation_logs(hours=1)` — agent ARNs, sessions, callers
-5. `get_cost_and_usage(days=3, service='Amazon Bedrock')` — today vs yesterday vs baseline comparison
+## EVIDENCE LEDGER
 
-Only call tools 4-5 if tools 1-3 don't give enough evidence.
+After EACH tool call, write an evidence line before calling the next tool:
+- [CONFIRMED] what you now know for certain (with numbers)
+- [ELIMINATED] what you ruled out (and why)
+- [UNRESOLVED] what remains unclear (and what would resolve it)
 
-## Output format (follow this structure):
+Your final response MUST NOT contradict any [CONFIRMED] item.
+If a tool returned data, it's [CONFIRMED] that the tool works — never say "need to enable" something you already used.
 
-```
-## [Alarm Name] Investigation
+## TOOLS (use 3-5, not all)
 
-### What's Happening
-[Current state: firing/resolved. Token rate NOW. Cost/hour NOW.]
+Parallel first pass: get_monitoring_data('alarms'), get_monitoring_data('bedrock_usage'), get_monitoring_data('metric', 'AWS/Bedrock/InputTokenCount')
+Then targeted: get_recent_changes('bedrock'), check_invocation_logs(), detect_issues('loops'), manage_patterns('find', 'pattern-type'), get_resource_info('agent_runtime')
 
-### Metric Trend
-| Time | Tokens | vs Baseline |
-[Hourly data from get_metric_history]
+## OUTPUT
 
-### Who / Why
-- Agent: [ARN from logs or CloudTrail]
-- Caller: [Lambda/role]
-- Trigger: [deployment or change + time + user]
-- Correlation: [one sentence connecting change → spike]
-
-### Cost Comparison
-| Period | Bedrock Cost | Change |
-| Today (MTD) | $X | +Y% |
-| Yesterday | $X | baseline |
-| 2 days ago | $X | baseline |
-
-### Fix (ranked)
-1. IMMEDIATE: [exact CLI command]
-2. SHORT-TERM: [what to change]
-3. LONG-TERM: [prevent recurrence]
-
-### Blind Spots
-[What you couldn't determine. If logging disabled, give enable command.]
+```json
+{
+  "type": "investigation",
+  "severity": "critical|warning|info",
+  "summary": "One sentence: root cause + impact + current state",
+  "findings": [
+    {"label": "Descriptive title", "value": "Specific numbers, ARNs, timestamps", "status": "danger|warning|ok"}
+  ],
+  "timeline": [
+    {"time": "HH:MM", "event": "Specific event with numbers"}
+  ],
+  "actions": [
+    {"label": "Action name", "prompt": "Exact action", "destructive": false}
+  ],
+  "blind_spots": "Only genuinely unavailable info. Verify against your evidence ledger before writing."
+}
 ```
 
-## Rules:
-- 4-5 tool calls max. Don't call all tools if first 3 give the answer.
-- Always include the cost comparison table.
-- Always include metric trend table.
-- Show ARNs and timestamps. No vague language.
-- If you find the root cause in step 3, skip step 4.
-- Professional tone. 20-40 lines.
+## RULES
+- 4-8 finding tiles with descriptive labels and specific numbers
+- Show multiplier vs baseline (e.g., "9.8x normal")
+- If data is partial, USE what you have. Call tool again with different params before concluding "unknown"
+- Parallel tool calls allowed when tools are independent

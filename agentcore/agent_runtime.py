@@ -11,13 +11,11 @@ from strands.tools.mcp import MCPClient
 from botocore.credentials import Credentials
 from streamable_http_sigv4 import streamablehttp_client_with_sigv4
 from tools import (
-    get_alarm_status, get_bedrock_usage, get_metric_history,
-    get_recent_changes, get_recent_deployments,
-    get_agent_costs, detect_agent_loops,
-    save_pattern, find_similar_patterns,
-    send_notification, stop_agent_invocations, check_invocation_logs, set_budget_alert,
-    check_bedrock_config_changes,
-    get_cost_and_usage, get_cost_anomalies, get_budgets, get_cost_forecast
+    get_resource_info, get_monitoring_data, get_cost_data,
+    get_recent_changes, check_invocation_logs,
+    manage_patterns, detect_issues,
+    send_notification, stop_agent_invocations, set_budget_alert,
+    request_quota_increase
 )
 from skill_loader import select_skill
 from slack_handler import start_slack_listener, set_agent_fn
@@ -25,6 +23,8 @@ import os
 import boto3
 import logging
 from datetime import datetime, timezone
+
+ddb = boto3.resource('dynamodb', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -58,7 +58,7 @@ else:
 model = BedrockModel(
     model_id=MODEL_ID,
     region_name=AWS_REGION,
-    max_tokens=8192
+    max_tokens=int(os.environ.get('MAX_TOKENS', '12000'))
 )
 
 # Get AWS credentials for SigV4 signing
@@ -89,13 +89,11 @@ def get_current_date_utc() -> str:
 
 # Local Strands tools (Cost Intelligence extensions)
 local_tools = [
-    get_alarm_status, get_bedrock_usage, get_metric_history,
-    get_recent_changes, get_recent_deployments,
-    get_agent_costs, detect_agent_loops,
-    save_pattern, find_similar_patterns,
-    send_notification, stop_agent_invocations, check_invocation_logs, set_budget_alert,
-    check_bedrock_config_changes,
-    get_cost_and_usage, get_cost_anomalies, get_budgets, get_cost_forecast
+    get_resource_info, get_monitoring_data, get_cost_data,
+    get_recent_changes, check_invocation_logs,
+    manage_patterns, detect_issues,
+    send_notification, stop_agent_invocations, set_budget_alert,
+    request_quota_increase
 ]
 
 # Global MCP client to keep connection alive
@@ -110,68 +108,67 @@ def initialize_agent_with_gateway():
     global mcp_client, agent, mcp_tools, system_prompt_template
     
     try:
+        # Set system prompt first (needed regardless of Gateway)
+        current_date = get_current_date_utc()
+        system_prompt_template = f"""You are a Cost Intelligence Agent. You investigate cost anomalies in real-time.
+
+Current date: {current_date}
+
+## TOOLS
+When investigating, use these:
+1. get_monitoring_data — alarms, metrics, bedrock usage, alarm history
+2. get_recent_changes — CloudTrail changes, deployments, config changes
+3. check_invocation_logs — caller ARNs, sessions, token details
+4. get_cost_data — cost by service, anomalies, forecast, budgets, by tag
+5. detect_issues — loop detection, per-agent costs, quota limits
+6. manage_patterns — find/save patterns, check topology, save investigations
+7. get_resource_info — agent config, Lambda config, stacks, EventBridge, IAM, tags, SNS, ECS
+
+## CONSTRAINTS
+- billingMcp tools have 12-hour delay. Use CloudWatch for real-time.
+- pricingMcp tools for pricing lookups.
+- Destructive actions need user confirmation first.
+- Never suggest manual CLI commands — use your tools.
+- If a tool returned data, that data exists. Don't claim unavailable later.
+
+## WORKFLOW
+0. Identify ownership: get_resource_info('tags') and get_resource_info('iam_role') on primary resource.
+1. Check real-time metrics (get_monitoring_data('bedrock_usage'), get_monitoring_data('alarms'))
+2. Check what changed (get_recent_changes('bedrock'))
+3. Check patterns (manage_patterns('find', 'pattern-type'))
+4. Get dollar context (get_cost_data('usage'))
+5. Explain root cause + recommend action
+6. Save pattern (manage_patterns('save')) if new
+
+## OUTPUT
+If your response has data, metrics, or findings — use ```json tiles. Plain text for simple answers. You decide based on content. No emojis in responses.
+Before writing blind_spots, verify you tried 2+ relevant tools first."""
+        
+        # If no Gateway, just use local tools
         if not gateway_endpoint:
-            logger.error("Cannot initialize: Gateway endpoint not configured")
+            logger.info("No Gateway configured — using local tools only")
             agent = Agent(
                 model=model,
-                system_prompt="I'm sorry, but I'm not properly configured. Please contact support."
+                tools=local_tools,
+                system_prompt=system_prompt_template
             )
+            logger.info(f"✅ Agent created with {len(local_tools)} local tools (no Gateway)")
             return
-        
+
+        # Connect to Gateway for MCP tools
         logger.info("🔧 Initializing MCP Client with SigV4 authentication...")
-        
-        # Create MCP client with SigV4 authentication
         mcp_client = MCPClient(lambda: streamablehttp_client_with_sigv4(
             url=gateway_endpoint,
             credentials=frozen_credentials,
             service="bedrock-agentcore",
             region=AWS_REGION
         ))
-        
-        # Start the MCP client connection
         mcp_client.__enter__()
-        
-        # Get tools from Gateway
         logger.info("📋 Listing tools from Gateway...")
         mcp_tools = mcp_client.list_tools_sync()
         logger.info(f"✅ Retrieved {len(mcp_tools)} tools from Gateway")
-        
-        # Get current date for system prompt
-        current_date = get_current_date_utc()
-        
-        # Store system prompt template for reuse
-        # IMPORTANT: Don't list specific tool names in system prompt
-        # Gateway prefixes tool names, so let the agent discover them dynamically
-        system_prompt_template = f"""You are a Cost Intelligence Agent. You investigate cost anomalies in real-time.
 
-Current date: {current_date}
-
-CRITICAL: When investigating an alert or anomaly, ALWAYS use these tools FIRST:
-1. get_alarm_status — what CloudWatch alarms are firing right now
-2. get_bedrock_usage — real-time token counts and invocations (last 60 min)
-3. get_metric_history — hourly trend for any metric (shows spikes)
-4. get_recent_changes — CloudTrail: what API calls happened recently for a service
-5. get_recent_deployments — what code was deployed in the last 24h
-6. find_similar_patterns — have we seen this pattern before?
-7. get_agent_costs — per-Bedrock-agent token breakdown (requires invocation logging)
-8. detect_agent_loops — check for runaway agent patterns
-
-Only use billingMcp tools (Cost Explorer) for dollar amounts and historical cost trends.
-Do NOT use billingMcp for real-time investigation — it has 12-hour delay.
-
-Investigation workflow:
-1. Check real-time metrics (get_bedrock_usage, get_alarm_status)
-2. Check what changed (get_recent_changes, get_recent_deployments)
-3. Check patterns (find_similar_patterns)
-4. Get dollar context (billingMcp___cost-explorer)
-5. Explain root cause + recommend action
-6. Save pattern (save_pattern) if this is new
-
-For pricing lookups, use pricingMcp__ tools.
-Be concise. Use bullet points. Show specific numbers."""
-        
         # Create agent with Gateway tools (memory will be added per-request)
-        # Note: We don't add session_manager here because it's request-specific
         agent = Agent(
             model=model,
             tools=local_tools,
@@ -216,9 +213,11 @@ def invoke(payload):
 
     # Select skill based on query
     skill_instructions = select_skill(user_message)
-    request_prompt = f"""{system_prompt_template}
+    request_prompt = system_prompt_template
+    if skill_instructions:
+        request_prompt = f"""{system_prompt_template}
 
-## ACTIVE SKILL (follow these steps exactly):
+## ACTIVE SKILL:
 
 {skill_instructions}
 """
@@ -226,7 +225,7 @@ def invoke(payload):
     # Create agent with memory session manager if memory is configured
     agent_with_memory = agent  # Default to base agent
 
-    if MEMORY_ID and mcp_tools:  # Only configure memory if we have tools
+    if MEMORY_ID:  # Configure memory and skill-enhanced prompt
         try:
             logger.info(f"💾 Configuring memory - Memory ID: {MEMORY_ID}, Session: {session_id}")
 
@@ -253,12 +252,10 @@ def invoke(payload):
 
         except Exception as e:
             logger.warning(f"⚠️ Could not configure memory, using agent without memory: {e}")
-            agent_with_memory = agent
+            agent_with_memory = Agent(model=model, tools=local_tools, system_prompt=request_prompt)
     else:
-        if not MEMORY_ID:
-            logger.info("ℹ️ Memory not configured, using agent without memory")
-        else:
-            logger.warning("⚠️ Tools not available, using agent without memory")
+        logger.info("ℹ️ Memory not configured, using agent without memory")
+        agent_with_memory = Agent(model=model, tools=local_tools, system_prompt=request_prompt)
 
     # Invoke agent - memory is handled automatically by session_manager
     try:
@@ -283,6 +280,29 @@ def invoke(payload):
                 final_message = final_message['text']
 
         logger.info("✅ Request processed successfully")
+
+        # Auto-save investigation if response has structured findings
+        try:
+            import re as _re, json as _json, uuid as _uuid
+            json_match = _re.search(r'```json\s*([\s\S]*?)```', str(final_message))
+            if json_match:
+                parsed = _json.loads(json_match.group(1).strip())
+                if parsed.get('findings') and len(parsed.get('findings', [])) > 0:
+                    inv_table = ddb.Table(os.environ.get('INVESTIGATIONS_TABLE', 'cost_investigations'))
+                    inv_table.put_item(Item={
+                        'investigation_id': str(_uuid.uuid4()),
+                        'alarm_name': parsed.get('summary', '')[:50],
+                        'severity': parsed.get('severity', 'info'),
+                        'summary': parsed.get('summary', ''),
+                        'findings': _json.dumps(parsed.get('findings', [])),
+                        'timeline': _json.dumps(parsed.get('timeline', [])),
+                        'actions': _json.dumps(parsed.get('actions', [])),
+                        'timestamp': datetime.now(timezone.utc).isoformat(),
+                        'status': 'completed'
+                    })
+                    logger.info("💾 Investigation auto-saved to DynamoDB")
+        except Exception as save_err:
+            logger.warning(f"Could not auto-save investigation: {save_err}")
 
         response = {
             "result": final_message,
@@ -329,3 +349,93 @@ if __name__ == "__main__":
     logger.info("🔌 Slack Socket Mode started")
     
     app.run()
+
+
+@app.websocket
+async def websocket_handler(websocket, context):
+    """WebSocket handler for real-time streaming to web UI."""
+    import json as _json
+    await websocket.accept()
+    
+    try:
+        data = await websocket.receive_json()
+        user_message = data.get('prompt', '')
+        session_id = data.get('sessionId', 'ws-default')
+        model_choice = data.get('model', 'sonnet')
+        
+        if not user_message:
+            await websocket.send_json({"type": "error", "message": "No prompt provided"})
+            await websocket.close()
+            return
+        
+        # Select skill and build prompt
+        skill_instructions = select_skill(user_message)
+        request_prompt = f"""{system_prompt_template}
+
+## ACTIVE SKILL:
+{skill_instructions}
+
+REMINDER: If your response contains findings, metrics, or comparisons — respond with structured JSON. Always use tiles for data.
+"""
+        selected_model = haiku_model if model_choice == "haiku" else model
+        
+        # Send status
+        await websocket.send_json({"type": "status", "message": "Starting investigation..."})
+        
+        # Create agent with tool use callback
+        from strands import Agent
+        from strands.agent.callback_handler import CallbackHandler
+        
+        class StreamingCallback(CallbackHandler):
+            def __init__(self, ws):
+                self._ws = ws
+                self._loop = None
+                import asyncio
+                self._loop = asyncio.get_event_loop()
+                
+            def on_tool_start(self, tool_name, tool_input):
+                import asyncio
+                asyncio.ensure_future(
+                    self._ws.send_json({"type": "tool_start", "tool": tool_name}),
+                    loop=self._loop
+                )
+            
+            def on_tool_end(self, tool_name, tool_output):
+                import asyncio
+                # Send abbreviated result
+                output_str = str(tool_output)[:200]
+                asyncio.ensure_future(
+                    self._ws.send_json({"type": "tool_end", "tool": tool_name, "result": output_str}),
+                    loop=self._loop
+                )
+        
+        try:
+            callback = StreamingCallback(websocket)
+            agent_instance = Agent(
+                model=selected_model,
+                tools=local_tools,
+                system_prompt=request_prompt,
+                callback_handler=callback
+            )
+            result = agent_instance(user_message)
+            
+            # Extract final message
+            if hasattr(result, 'message'):
+                final = result.message
+            elif isinstance(result, str):
+                final = result
+            else:
+                final = str(result)
+            
+            if isinstance(final, dict):
+                if 'content' in final and isinstance(final['content'], list):
+                    final = ''.join([item.get('text', '') for item in final['content'] if 'text' in item])
+            
+            await websocket.send_json({"type": "response", "message": str(final)})
+        except Exception as e:
+            await websocket.send_json({"type": "error", "message": str(e)})
+        
+    except Exception as e:
+        logger.error(f"WebSocket error: {e}")
+    finally:
+        await websocket.close()
