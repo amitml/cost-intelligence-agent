@@ -1,73 +1,151 @@
-# Cost Intelligence Agent
+# CostOp Intelligence Agent
 
-Extends the [AWS FinOps Agent](https://github.com/aws-samples/sample-finops-agent-amazon-bedrock-agentcore) with proactive cost alerting, root cause correlation, and per-agent cost tracking.
+An AI agent that monitors your Amazon Bedrock costs in real-time, investigates spikes autonomously, and tells you exactly who caused them and how to fix it.
 
-## What's Added
+Built on Amazon Bedrock AgentCore + Strands SDK + Claude Sonnet 4.5.
 
-| Extension | What It Does |
-|---|---|
-| `extensions/cloudtrail-tools/` | MCP server that correlates cost spikes with deployments and infrastructure changes |
-| `extensions/proactive-watcher/` | Lambda triggered by CloudWatch Alarms + Cost Anomaly Detection → asks the agent to investigate → posts to Slack |
-| `extensions/agent-economics/` | MCP server for per-Bedrock-agent cost tracking and loop detection |
+---
+
+## 🚀 First Time Setup (5 minutes)
+
+### Prerequisites
+- AWS account with Bedrock access (Claude Sonnet 4.5 enabled)
+- AWS CLI configured (`aws configure`)
+- Node.js 18+ (for UI deployment)
+
+### Step 1: Deploy the backend
+
+Download the template and deploy via AWS Console or CLI:
+
+```bash
+# Clone the repo
+git clone https://github.com/amitml/cost-intelligence-agent.git
+cd cost-intelligence-agent
+
+# Deploy (replace with your email)
+aws cloudformation create-stack \
+  --stack-name CostOp \
+  --template-body file://cloudformation/costop-template.yaml \
+  --parameters ParameterKey=AdminEmail,ParameterValue=YOUR_EMAIL@company.com \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --region us-east-1
+
+# Wait ~5 minutes for deployment
+aws cloudformation wait stack-create-complete --stack-name CostOp --region us-east-1
+```
+
+### Step 2: Deploy the web UI
+
+```bash
+./scripts/deploy-ui.sh CostOp us-east-1
+```
+
+This prints your URL (e.g., `https://main.d1234abc.amplifyapp.com`)
+
+### Step 3: Login
+
+- Check your email for temporary password from Cognito
+- Go to the URL from Step 2
+- Login with username `admin` and the temp password
+- Set a new password when prompted
+
+### Step 4: Try it
+
+Type in the chat: **"Investigate my Bedrock costs"**
+
+The agent will check your alarms, token usage, CloudTrail, and give you a structured report with findings, timeline, and recommended actions.
+
+---
+
+## What It Does
+
+```
+CloudWatch Alarm fires → Agent investigates automatically → 
+Sends you an email with: WHO caused it, WHY, HOW MUCH, and HOW TO FIX
+```
+
+- **Real-time detection** — 5 CloudWatch alarms monitor Bedrock metrics
+- **Autonomous investigation** — hypothesis-driven with evidence ledger
+- **Structured reports** — findings tiles, timeline, action buttons
+- **Pattern memory** — learns from past incidents, recognizes repeats
+- **Proactive alerts** — email + Slack with full investigation (not just "alarm fired")
+- **Dark mode** — because you'll be checking costs at midnight
+
+---
 
 ## Architecture
 
 ```
-BASE (from AWS sample):
-  AgentCore Runtime (Strands + Claude Sonnet)
-  ├── AgentCore Gateway
-  │   ├── Billing MCP Server (Cost Explorer, Budgets, Compute Optimizer)
-  │   └── Pricing MCP Server (Price List API)
-  ├── AgentCore Memory (30-day conversation history)
-  └── Amplify Frontend + Cognito Auth
+Web UI (Amplify) → Cognito Auth → AgentCore Runtime (11 tools)
+                                        ↓
+                    CloudWatch + CloudTrail + Cost Explorer + Invocation Logs
+                                        ↓
+                    Structured investigation → Email + Slack + DynamoDB
 
-EXTENSIONS (this repo adds):
-  ├── CloudTrail MCP Server (what changed? who deployed?)
-  ├── Agent Economics MCP Server (per-agent costs, loop detection)
-  ├── CloudWatch Alarm → EventBridge → Proactive Watcher Lambda
-  └── SNS → Slack/Email notifications
+Proactive: Alarm → EventBridge → Lambda → Agent → Email/Slack
 ```
 
-## Quick Start
+---
 
-### 1. Deploy the base FinOps agent
+## Configuration Options
+
+Deploy with custom parameters:
 
 ```bash
-export ADMIN_EMAIL="your-email@company.com"
-cd cdk && npm install && npm run build && npx cdk bootstrap && npx cdk deploy --all --require-approval never
+aws cloudformation create-stack \
+  --stack-name CostOp \
+  --template-body file://cloudformation/costop-template.yaml \
+  --parameters \
+    ParameterKey=AdminEmail,ParameterValue=you@company.com \
+    ParameterKey=DefaultModel,ParameterValue=Haiku \
+    ParameterKey=MonthlyBudgetLimit,ParameterValue=200 \
+    ParameterKey=EnableSlack,ParameterValue=Yes \
+    ParameterKey=SlackBotToken,ParameterValue=xoxb-... \
+    ParameterKey=MemoryRetentionDays,ParameterValue=90 \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --region us-east-1
 ```
 
-### 2. Deploy extensions
+See [cloudformation/README.md](cloudformation/README.md) for all parameters.
+
+---
+
+## Cost to Run
+
+| Model | Monthly Cost | Per Investigation |
+|---|---|---|
+| Sonnet 4.5 | ~$150-180 | ~$0.25 |
+| Haiku 4.5 | ~$18-45 | ~$0.03 |
+
+Plus: CloudWatch alarms ($0.50), DynamoDB (free tier), Lambda (free tier).
+
+---
+
+## Delete Everything
 
 ```bash
-# TODO: CDK stack for extensions (CloudWatch Alarm + EventBridge + Lambda + MCP runtimes)
-cd extensions/
-# Instructions coming soon
+aws ecr delete-repository --repository-name $(aws ecr describe-repositories --query 'repositories[?contains(repositoryName, `costop`)].repositoryName' --output text) --force --region us-east-1
+aws cloudformation delete-stack --stack-name CostOp --region us-east-1
 ```
 
-### 3. Enable Bedrock model invocation logging (for Agent Economics)
+---
 
-Console → Amazon Bedrock → Settings → Model invocation logging → Enable → CloudWatch Logs
+## Troubleshooting
 
-## Two Modes
+| Issue | Fix |
+|---|---|
+| "Incorrect username or password" | Reset: `aws cognito-idp admin-set-user-password --user-pool-id <ID> --username admin --password 'NewPass1!' --permanent` |
+| Agent returns error | Check logs: CloudWatch → `/aws/bedrock-agentcore/runtimes/` |
+| Stack delete fails | Delete ECR repo first (see Delete section above) |
 
-**Proactive** (agent alerts you):
-```
-CloudWatch detects spike → EventBridge → Lambda asks agent → Slack:
-"⚠️ Bedrock invocations up 5x. Deployment by dev@co 30min ago.
- Similar to March 12 incident ($2,400). Projected burn: $67/day."
-```
+---
 
-**Reactive** (you ask):
-```
-You: "Why are my costs up this week?"
-Agent: "Bedrock up 340%. Driver: data-analyst-agent.
-       Prompt change Tuesday added 6K tokens/query.
-       Per-query cost: $0.34 now vs $0.08 before."
-```
+## Links
 
-## Prerequisites
+- [Full deployment guide](cloudformation/README.md)
+- [ECR Public Image](https://gallery.ecr.aws/y3a7j1y9/amitml/costop-agent)
+- [Product Paper](PRODUCT_PAPER.md)
 
-- AWS account with Bedrock, AgentCore, Cost Explorer access
-- Node.js 18+, Python 3.13+, AWS CDK installed
-- Bedrock model invocation logging enabled (for agent economics)
+---
+
+*Created by [amitml](https://github.com/amitml)*
