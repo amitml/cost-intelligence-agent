@@ -60,7 +60,7 @@ Sends you an email with: WHO caused it, WHY, HOW MUCH, and HOW TO FIX
 - **Structured reports** — findings tiles, timeline, action buttons
 - **Pattern memory** — learns from past incidents, recognizes repeats
 - **Proactive alerts** — email + Slack with full investigation (not just "alarm fired")
-- **Dark mode** — because you'll be checking costs at midnight
+- **Dark mode** — full dark/light theme support
 
 ---
 
