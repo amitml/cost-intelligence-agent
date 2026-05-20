@@ -2,14 +2,14 @@
 
 A real-time monitoring and ops agent that extends the [AWS FinOps Agent](https://github.com/aws-samples/sample-finops-agent-amazon-bedrock-agentcore) with proactive cost alerting, root cause correlation, and per-agent cost tracking.
 
-Built on Amazon Bedrock AgentCore + Strands SDK + Claude Sonnet 4.5.
+Built on Amazon Bedrock AgentCore + Strands SDK + Claude Sonnet 4.6.
 
 ---
 
 ## 🚀 First Time Setup (5 minutes)
 
 ### Prerequisites
-- AWS account with Bedrock access (Claude Sonnet 4.5 enabled)
+- AWS account with Bedrock access (Claude Sonnet 4.6 enabled in your region)
 - AWS CLI configured (`aws configure`)
 
 ### Step 1: Download the template
@@ -88,7 +88,7 @@ aws cloudformation create-stack \
   --template-body file://costop-template.yaml \
   --parameters \
     ParameterKey=AdminEmail,ParameterValue=you@company.com \
-    ParameterKey=DefaultModel,ParameterValue=Haiku \
+    ParameterKey=DefaultModel,ParameterValue=Haiku4.5 \
     ParameterKey=MonthlyBudgetLimit,ParameterValue=200 \
     ParameterKey=EnableSlack,ParameterValue=Yes \
     ParameterKey=SlackBotToken,ParameterValue=xoxb-... \
@@ -113,6 +113,7 @@ See [cloudformation/README.md](cloudformation/README.md) for all parameters.
 
 | Model | Per Investigation |
 |---|---|
+| Sonnet 4.6 | ~$0.25 |
 | Sonnet 4.5 | ~$0.25 |
 | Haiku 4.5 | ~$0.03 |
 
