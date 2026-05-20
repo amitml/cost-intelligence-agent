@@ -11,49 +11,42 @@ Built on Amazon Bedrock AgentCore + Strands SDK + Claude Sonnet 4.5.
 ### Prerequisites
 - AWS account with Bedrock access (Claude Sonnet 4.5 enabled)
 - AWS CLI configured (`aws configure`)
-- Node.js 18+ (for UI deployment)
 
-### Step 1: Deploy the backend
-
-Download the template and deploy via AWS Console or CLI:
+### Step 1: Download the template
 
 ```bash
-# Clone the repo
-git clone https://github.com/amitml/cost-intelligence-agent.git
-cd cost-intelligence-agent
+curl -O https://raw.githubusercontent.com/amitml/cost-intelligence-agent/main/cloudformation/costop-template.yaml
+```
 
-# Deploy (replace with your email)
+### Step 2: Deploy
+
+```bash
 aws cloudformation create-stack \
   --stack-name CostOp \
-  --template-body file://cloudformation/costop-template.yaml \
+  --template-body file://costop-template.yaml \
   --parameters ParameterKey=AdminEmail,ParameterValue=YOUR_EMAIL@company.com \
   --capabilities CAPABILITY_NAMED_IAM \
   --region us-east-1
+```
 
-# Wait ~5 minutes for deployment
+### Step 3: Wait ~5 minutes
+
+```bash
 aws cloudformation wait stack-create-complete --stack-name CostOp --region us-east-1
 ```
 
-### Step 2: Deploy the web UI
+### Step 4: Get your URL and login
 
 ```bash
-./scripts/deploy-ui.sh CostOp us-east-1
+aws cloudformation describe-stacks --stack-name CostOp --region us-east-1 \
+  --query 'Stacks[0].Outputs[?OutputKey==`WebAppURL`].OutputValue' --output text
 ```
 
-This prints your URL (e.g., `https://main.d1234abc.amplifyapp.com`)
-
-### Step 3: Login
-
 - Check your email for temporary password from Cognito
-- Go to the URL from Step 2
 - Login with username `admin` and the temp password
 - Set a new password when prompted
 
-### Step 4: Try it
-
-Type in the chat: **"Investigate my Bedrock costs"**
-
-The agent will check your alarms, token usage, CloudTrail, and give you a structured report with findings, timeline, and recommended actions.
+That's it. No Node.js, no Docker, no cloning repos.
 
 ---
 
