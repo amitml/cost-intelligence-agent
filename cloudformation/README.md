@@ -37,7 +37,8 @@ Check your email for temporary credentials. Open the Amplify URL printed by the 
 | Parameter | Default | Description |
 |---|---|---|
 | **AdminEmail** | (required) | Login credentials + alert notifications |
-| **DefaultModel** | Sonnet | Sonnet (deeper reasoning) or Haiku (faster/cheaper) |
+| **DefaultModel** | Sonnet | Sonnet (deeper reasoning) or Haiku (faster/cheaper). Ignored if CustomModelId is set. |
+| **CustomModelId** | (empty) | Override with any Bedrock model ID (e.g. `us.anthropic.claude-sonnet-4-20250514-v1:0`) |
 | **EnableTokenAlarm** | Yes | Alert on input token spikes |
 | **TokenAlarmThreshold** | 200000 | Tokens per 5-min window |
 | **EnableRPMAlarm** | Yes | Alert on requests per minute |
@@ -93,6 +94,7 @@ The agent uses structured tile format (findings, timeline, actions) for investig
 Switch between Sonnet and Haiku using the dropdown in the header:
 - **Sonnet** — deeper reasoning, evidence ledger, hypothesis-driven. Best for complex investigations.
 - **Haiku** — faster, cheaper, good for simple queries. ~90% of Sonnet quality at 5x speed.
+- **Custom** — set `CustomModelId` to use any Bedrock model. Update the stack when new models are released.
 
 ### Proactive Alerts
 
