@@ -1,169 +1,99 @@
 # CostOp Intelligence Agent — Project Memory
 
-**Last updated:** 2026-05-17 15:11 PST
-**Runtime version:** v57
-**Status:** ✅ Deployed and operational
+**Last updated:** 2026-05-20 15:07 PST
+**Status:** Stack deleted. Project packaged and published.
 **Repo:** https://github.com/amitml/cost-intelligence-agent
-**ECR Public:** public.ecr.aws/y3a7j1y9/costop-agent (repo created, image NOT pushed yet — Docker not running)
+**ECR Public:** public.ecr.aws/y3a7j1y9/amitml/costop-agent:latest
 
 ---
 
-## NEXT SESSION: One-Click CloudFormation Package
+## Current State
 
-### DONE ✅:
-- ECR Public image pushed: `public.ecr.aws/y3a7j1y9/costop-agent:latest` and `:v57`
-- CloudFormation template written and validates: `cloudformation/costop-template.yaml`
-- Template includes: Cognito, AgentCore Runtime, DynamoDB (3 tables), CloudWatch Alarms (5, conditional), EventBridge (3 rules), Bridge Lambda (inline), Budget (conditional), Invocation Logging (conditional), SNS, IAM roles
-- Web UI noted as separate deployment (needs stack outputs for config)
+- **Stack `CostOp` deleted** from account 463440883924 (us-east-1)
+- **GitHub repo** is the single source of truth — all old v1 files (CDK, extensions, MCP servers, old frontend) removed
+- **GitHub Release v2** has `costop-ui.zip` attached
+- **ECR Public image** synced and working
+- **Template validated** and ready for any customer to deploy
 
-### What's left:
-1. **Test deploy** in a clean account (or same account with different stack name)
-2. **Web UI packaging** — either include Amplify in template or document as separate step
-3. **Slack integration** — conditional resources (API GW + Lambdas) if EnableSlack=Yes
-4. **README** for the template (parameter descriptions, deployment guide)
+---
 
-### Template Parameters:
-```yaml
+## Template: cloudformation/costop-template.yaml
+
+### Model Selection (updated 2026-05-20)
+- **DefaultModel** dropdown: `Sonnet4.6` (default), `Sonnet4.5`, `Haiku4.5`
+- **CustomModelId** parameter: override with any Bedrock model ID
+- Note in docs: model must be enabled in customer's account/region via Bedrock console
+- Logic: CustomModelId takes priority → else dropdown maps to:
+  - Sonnet4.6 → `us.anthropic.claude-sonnet-4-6`
+  - Sonnet4.5 → `us.anthropic.claude-sonnet-4-5-20250929-v1:0`
+  - Haiku4.5 → `us.anthropic.claude-haiku-4-5-20251001-v1:0`
+
+### All Parameters (fully configurable)
+```
 AdminEmail (required)
-DefaultModel: Sonnet|Haiku
-EnableTokenAlarm: Yes/No (threshold)
-EnableRPMAlarm: Yes/No (threshold)
-EnableTPMAlarm: Yes/No
-EnableThrottleAlarm: Yes/No
-EnableErrorAlarm: Yes/No
-MonthlyBudgetLimit: $0-999 (0=none)
-BudgetAlertThreshold: 80%
+DefaultModel: Sonnet4.6 | Sonnet4.5 | Haiku4.5
+CustomModelId: (any Bedrock model ID, optional)
+EnableTokenAlarm: Yes/No, TokenAlarmThreshold: 200000
+EnableRPMAlarm: Yes/No, RPMAlarmThreshold: 100
+EnableTPMAlarm: Yes/No, TPMAlarmThreshold: 80
+EnableThrottleAlarm: Yes/No, ThrottleAlarmThreshold: 5
+EnableErrorAlarm: Yes/No, ErrorAlarmThreshold: 10
+MonthlyBudgetLimit: 100 (0=none)
 EnableCostAnomalyDetection: Yes/No
-PermissionLevel: ReadOnly|Targeted
 EnableInvocationLogging: Yes/No
+MemoryRetentionDays: 30 (7-365)
+InvocationLogGroup: (existing or empty to create)
+SNSTopicArn: (existing or empty to create)
+CloudWatchAlarms: (empty to create, EXISTING to skip)
 EnableSlack: Yes/No
-SlackBotToken (NoEcho, conditional)
-SlackSigningSecret (NoEcho, conditional)
-SlackChannel (conditional)
-RemovalPolicy: Delete|Retain
+SlackBotToken, SlackSigningSecret, SlackChannel
 ```
 
 ---
 
-## Current Runtime: v57
-
-### Architecture:
+## Architecture
 ```
-Web UI (Amplify) → SigV4 → AgentCore Runtime (v57)
-                              ├── 22+ local Strands tools (smart summaries)
-                              ├── AgentCore Memory (30-day)
-                              ├── DynamoDB (patterns, investigations, topology)
-                              └── Sonnet 4.5 / Haiku 4.5 (user choice)
+Web UI (Amplify) → Cognito Auth → AgentCore Runtime (11 tools)
+                                        ↓
+                    CloudWatch + CloudTrail + Cost Explorer + Invocation Logs
+                                        ↓
+                    Structured investigation → Email + Slack + DynamoDB
 
-Proactive: CloudWatch Alarm → EventBridge → bridge Lambda → AgentCore → Slack + SNS
-           Budget breach → EventBridge → bridge Lambda → AgentCore → Slack + SNS
-           Cost Anomaly → EventBridge → bridge Lambda → AgentCore → Slack + SNS
-           (5-min dedup + self-alarm filter)
-
-Slack: @mention → API GW → SQS FIFO → agent-integration Lambda → AgentCore → Block Kit
-       Button clicks → Interactivity → verification Lambda → SQS → agent processes
-```
-
-### Key Changes in v57 (from v41):
-- **Tool response optimization**: check_invocation_logs returns smart summary (~1500-2000 tokens) with detail='full' option. get_recent_changes capped to 10 events, params truncated. get_cost_and_usage returns top 20 by cost.
-- **Evidence ledger**: in investigation skill, prevents contradictions
-- **Topology tool**: check_topology verifies resource connections before claiming correlation
-- **Auto-save investigations**: server-side, any response with findings saves to DynamoDB
-- **Structured system prompt**: TOOLS → CONSTRAINTS → WORKFLOW → OUTPUT sections
-- **Skill loader**: returns empty for non-cost queries (prevents "who are you" triggering investigation)
-- **No emojis**: instruction added to system prompt
-- **max_tokens=16384**: prevents MaxTokensReachedException on complex queries
-- **Flexible UI renderer**: handles different field names (label/name/title, value/description/detail)
-- **Slack interactivity**: verification Lambda handles URL-encoded block_actions payloads
-- **Slack agent-integration**: extracts `result` field from AgentCore JSON response, formats as Block Kit
-
-### System Prompt (v57):
-```
-You are a Cost Intelligence Agent. You investigate cost anomalies in real-time.
-
-## TOOLS (11 listed as priority guidance)
-## CONSTRAINTS (billingMcp delay, no CLI, confirmations, consistency rule)
-## WORKFLOW (6 steps)
-## OUTPUT (tiles for data, plain text for simple, no emojis)
-```
-
-### Investigation Skill (injected on keyword match):
-```
-## PROTOCOL (assess → hypothesize → test → attribute → conclude)
-## EVIDENCE LEDGER (CONFIRMED/ELIMINATED/UNRESOLVED)
-## TOOLS (parallel first pass + targeted)
-## OUTPUT (JSON schema: type, severity, summary, findings[], timeline[], actions[], blind_spots)
-## RULES (4-8 tiles, multiplier vs baseline, use partial data)
+Proactive: Alarm/Budget/Anomaly → EventBridge → Bridge Lambda → Agent → SNS Email
+Slack: @mention → API GW → SQS → Agent Integration Lambda → Block Kit response
 ```
 
 ---
 
-## What Works Well:
-- ✅ Evidence ledger prevents contradictions (~90%)
-- ✅ Topology tool prevents false correlations
-- ✅ Smart tool summaries keep context focused
-- ✅ Auto-save investigations to DynamoDB
-- ✅ Self-alarm filter in bridge Lambda
-- ✅ Slack Block Kit with buttons (interactivity wired)
-- ✅ Dark mode, mobile responsive, tree structure in left panel
-- ✅ Model selector (Sonnet/Haiku)
-- ✅ Stop button during generation
-- ✅ Copy button on responses
-- ✅ Budget + Cost Anomaly alerts in left panel + EventBridge triggers
-
-## Known Limitations (accepted):
-- Follow-up responses use tiles ~80% of the time (model judgment, no fix without architecture change)
-- Model occasionally doesn't call get_service_quotas when it should (20% failure rate on "use all available tools")
-- Streaming not implemented (WebSocket handler code exists but browser SigV4 auth is the blocker)
-- Structured output (Bedrock constrained decoding) doesn't work with multi-tool agentic workflows
-- Opus unified prompt approach produced worse results than skill-based approach
-
-## Experiments Tried & Reverted:
-- Opus unified prompt (v54) — model lost output schema, used generic field names
-- Strands structured_output_model (v45) — model filled only summary, lost findings
-- Server-side JSON wrapping — broke UI with huge escaped JSON
-- "When in doubt, tiles" — made simple questions use tiles unnecessarily
-- Cost widget (CloudWatch) — XML parsing issues, removed
+## Key Files
+- `cloudformation/costop-template.yaml` — one-click deployment (~900 lines)
+- `agentcore/agent_runtime.py` — main runtime with system prompt
+- `agentcore/tools.py` — 11 combined tools
+- `agentcore/skills/cost-spike-investigation/SKILL.md` — hypothesis-driven skill
+- `web/main.js` — UI with `window.COSTOP_CONFIG` support
+- `web/index.html` — dark mode, login with forgot password
+- `README.md` — customer-facing quick start
+- `cloudformation/README.md` — full deployment guide
 
 ---
 
-## Key Resources:
-| Resource | Value |
-|---|---|
-| Runtime | arn:aws:bedrock-agentcore:us-east-1:463440883924:runtime/finops_runtime-f25c6ZCRzH |
-| Gateway | finops-gateway-c6bkzwrmeg |
-| Memory | finops_memory-wGlPmPF0v3 |
-| Web UI | https://main.d21aywet1qkneb.amplifyapp.com |
-| Login | testuser / CostOp2026! |
-| Slack Channel | C0B45LQETJ5 |
-| ECR Private | 463440883924.dkr.ecr.us-east-1.amazonaws.com/finops-agent-runtime |
-| ECR Public | public.ecr.aws/y3a7j1y9/costop-agent (empty) |
-| ECR Stable | finops-agent-runtime:v18-stable |
-| DynamoDB | cost_patterns, cost_investigations, cost_topology |
-| SNS | arn:aws:sns:us-east-1:463440883924:cost-intelligence-alerts |
-| Account | 463440883924 |
-| Region | us-east-1 |
-| API GW (Slack) | https://ceknhlppe0.execute-api.us-east-1.amazonaws.com/prod/slack-events |
+## Git History (recent)
+- `4d7f813` — Add Sonnet 4.6 as default model, 3 model dropdown + custom override
+- `0311df0` — Simplify custom model docs
+- `171eda3` — Remove dead link to deleted PRODUCT_PAPER.md
+- `569a8c9` — Simplify cost section
+- `2f95f54` — Professional tone in README
+- `9138249` — Update docs: all configurable parameters
+- `7a54495` — Make all alarm thresholds configurable (TPM, Throttle, Error)
 
 ---
 
-## Rollback:
+## No Active Deployment
+Stack was deleted. To redeploy, customer runs:
 ```bash
-# Agent to stable:
-aws bedrock-agentcore-control update-agent-runtime --agent-runtime-id finops_runtime-f25c6ZCRzH \
-  --agent-runtime-artifact '{"containerConfiguration":{"containerUri":"463440883924.dkr.ecr.us-east-1.amazonaws.com/finops-agent-runtime:v18-stable"}}' \
-  --role-arn "arn:aws:iam::463440883924:role/FinOpsAgentRuntimeStack-RuntimeRole" \
-  --network-configuration '{"networkMode":"PUBLIC"}' --region us-east-1
-
-# UI to early working version:
-aws amplify start-job --app-id d21aywet1qkneb --branch-name main --job-type RETRY --job-id 25 --region us-east-1
+curl -O https://raw.githubusercontent.com/amitml/cost-intelligence-agent/main/cloudformation/costop-template.yaml
+aws cloudformation create-stack --stack-name CostOp \
+  --template-body file://costop-template.yaml \
+  --parameters ParameterKey=AdminEmail,ParameterValue=EMAIL \
+  --capabilities CAPABILITY_NAMED_IAM --region us-east-1
 ```
-
----
-
-## Session Stats (May 16-17):
-- Runtime versions: v18 → v57 (39 deployments in 2 days)
-- UI deployments: 60+
-- Bedrock spend: ~$25-30 (mostly self-investigation loop)
-- Key discovery: agent was investigating its own token usage recursively
-- Opus consultations: 3 (prompt structure, tool optimization, unified prompt)
