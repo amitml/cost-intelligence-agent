@@ -46,8 +46,6 @@ aws cloudformation describe-stacks --stack-name CostOp --region us-east-1 \
 - Login with username `admin` and the temp password
 - Set a new password when prompted
 
-That's it. No Node.js, no Docker, no cloning repos.
-
 ---
 
 ## What It Does
