@@ -11,7 +11,12 @@ Parameters:
     Type: String
     Default: Sonnet
     AllowedValues: [Sonnet, Haiku]
-    Description: 'Sonnet = deeper reasoning. Haiku = faster/cheaper.'
+    Description: 'Sonnet = deeper reasoning. Haiku = faster/cheaper. Ignored if CustomModelId is set.'
+
+  CustomModelId:
+    Type: String
+    Default: ''
+    Description: 'Optional: override with any Bedrock model ID (e.g. us.anthropic.claude-sonnet-4-20250514-v1:0). Leave empty to use DefaultModel.'
 
   EnableTokenAlarm:
     Type: String
@@ -127,6 +132,7 @@ Conditions:
   CreateSNSTopic: !Equals [!Ref SNSTopicArn, '']
   SlackEnabled: !Equals [!Ref EnableSlack, 'Yes']
   UseSonnet: !Equals [!Ref DefaultModel, 'Sonnet']
+  UseCustomModel: !Not [!Equals [!Ref CustomModelId, '']]
 
 Resources:
   # ============================================
@@ -471,7 +477,7 @@ Resources:
         NetworkMode: PUBLIC
       EnvironmentVariables:
         MEMORY_ID: !GetAtt AgentMemory.MemoryId
-        MODEL_ID: !If [UseSonnet, 'us.anthropic.claude-sonnet-4-5-20250929-v1:0', 'us.anthropic.claude-haiku-4-5-20251001-v1:0']
+        MODEL_ID: !If [UseCustomModel, !Ref CustomModelId, !If [UseSonnet, 'us.anthropic.claude-sonnet-4-5-20250929-v1:0', 'us.anthropic.claude-haiku-4-5-20251001-v1:0']]
         AWS_REGION: !Ref AWS::Region
         SNS_TOPIC_ARN: !Ref AlertTopic
         PATTERNS_TABLE: !Ref PatternsTable
