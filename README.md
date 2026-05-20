@@ -85,7 +85,7 @@ Deploy with custom parameters:
 ```bash
 aws cloudformation create-stack \
   --stack-name CostOp \
-  --template-body file://cloudformation/costop-template.yaml \
+  --template-body file://costop-template.yaml \
   --parameters \
     ParameterKey=AdminEmail,ParameterValue=you@company.com \
     ParameterKey=DefaultModel,ParameterValue=Haiku \
@@ -93,6 +93,25 @@ aws cloudformation create-stack \
     ParameterKey=EnableSlack,ParameterValue=Yes \
     ParameterKey=SlackBotToken,ParameterValue=xoxb-... \
     ParameterKey=MemoryRetentionDays,ParameterValue=90 \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --region us-east-1
+```
+
+### Custom Model
+
+Use any Bedrock model by setting `CustomModelId`. This overrides the DefaultModel dropdown:
+
+```bash
+ParameterKey=CustomModelId,ParameterValue=us.anthropic.claude-sonnet-4-20250514-v1:0
+```
+
+When a new model is released, update the stack — no template changes needed:
+
+```bash
+aws cloudformation update-stack \
+  --stack-name CostOp \
+  --use-previous-template \
+  --parameters ParameterKey=CustomModelId,ParameterValue=NEW_MODEL_ID \
   --capabilities CAPABILITY_NAMED_IAM \
   --region us-east-1
 ```
