@@ -3,10 +3,10 @@ import { signIn, signOut, fetchAuthSession } from 'aws-amplify/auth';
 import { SignatureV4 } from '@smithy/signature-v4';
 import { Sha256 } from '@aws-crypto/sha256-js';
 
-Amplify.configure({Auth:{Cognito:{userPoolId:'us-east-1_inqPSaxiV',userPoolClientId:'5ks5gp9m72m3iib0764c7e5klc',identityPoolId:'us-east-1:d6f233c5-38d8-4f09-bdf4-95735289459e'}}});
+Amplify.configure({Auth:{Cognito:{userPoolId:window.COSTOP_CONFIG?.userPoolId||'us-east-1_inqPSaxiV',userPoolClientId:window.COSTOP_CONFIG?.clientId||'5ks5gp9m72m3iib0764c7e5klc',identityPoolId:window.COSTOP_CONFIG?.identityPoolId||'us-east-1:d6f233c5-38d8-4f09-bdf4-95735289459e'}}});
 
-const AGENT_ARN='arn:aws:bedrock-agentcore:us-east-1:463440883924:runtime/costop_runtime-thVaesENyr';
-const REGION='us-east-1';
+const AGENT_ARN=window.COSTOP_CONFIG?.agentArn||'arn:aws:bedrock-agentcore:us-east-1:463440883924:runtime/costop_runtime-thVaesENyr';
+const REGION=window.COSTOP_CONFIG?.region||'us-east-1';
 let sessionId='s-'+Date.now();
 
 // --- DARK MODE ---
@@ -512,7 +512,7 @@ async function loadCostAnomalies(session){
 async function loadInvestigations(session){
   try{
     const signer=new SignatureV4({service:'dynamodb',region:REGION,credentials:session.credentials,sha256:Sha256});
-    const body=JSON.stringify({TableName:window.INVESTIGATIONS_TABLE||'cost_investigations',Limit:20,ScanIndexForward:false});
+    const body=JSON.stringify({TableName:window.COSTOP_CONFIG?.investigationsTable||window.INVESTIGATIONS_TABLE||'cost_investigations',Limit:20,ScanIndexForward:false});
     const signed=await signer.sign({method:'POST',hostname:`dynamodb.${REGION}.amazonaws.com`,path:'/',headers:{'Content-Type':'application/x-amz-json-1.0','X-Amz-Target':'DynamoDB_20120810.Scan',host:`dynamodb.${REGION}.amazonaws.com`},body});
     const res=await fetch(`https://dynamodb.${REGION}.amazonaws.com/`,{method:'POST',headers:{...signed.headers,'X-Amz-Target':'DynamoDB_20120810.Scan','Content-Type':'application/x-amz-json-1.0'},body});
     const data=await res.json();

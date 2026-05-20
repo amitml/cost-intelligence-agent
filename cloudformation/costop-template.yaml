@@ -914,7 +914,7 @@ Resources:
       Role: !GetAtt UIDeployLambdaRole.Arn
       Code:
         ZipFile: |
-          import json, urllib.request, zipfile, io, time, boto3
+          import json, urllib.request, zipfile, io, time, boto3, re
 
           def send_response(event, context, status, data={}):
               body = json.dumps({'Status': status, 'Reason': str(data), 'PhysicalResourceId': event.get('PhysicalResourceId', context.log_stream_name), 'StackId': event['StackId'], 'RequestId': event['RequestId'], 'LogicalResourceId': event['LogicalResourceId'], 'Data': data})
@@ -927,20 +927,25 @@ Resources:
               try:
                   props = event['ResourceProperties']
                   time.sleep(10)
-                  config = json.dumps({'userPoolId': props['UserPoolId'], 'clientId': props['ClientId'], 'identityPoolId': props['IdentityPoolId'], 'agentArn': props['AgentArn'], 'region': props['Region']}, indent=2)
-                  html = f'''<!DOCTYPE html><html><head><title>CostOp Intelligence Agent</title><style>body{{font-family:system-ui;max-width:600px;margin:60px auto;padding:20px}}h1{{color:#E65100}}pre{{background:#f5f5f5;padding:16px;border-radius:8px;overflow-x:auto}}code{{background:#eee;padding:2px 6px;border-radius:3px}}</style></head><body>
-                  <h1>CostOp Intelligence Agent</h1>
-                  <p>Backend deployed successfully. To deploy the full UI, run:</p>
-                  <pre>git clone https://github.com/amitml/cost-intelligence-agent\ncd cost-intelligence-agent\n./scripts/deploy-ui.sh {props.get("StackName","")} {props["Region"]}</pre>
-                  <h3>Stack Configuration</h3><pre>{config}</pre>
-                  <p>Or use these values to configure your own frontend.</p></body></html>'''
-                  buf = io.BytesIO()
-                  with zipfile.ZipFile(buf, 'w') as zf:
-                      zf.writestr('index.html', html)
-                  ui_zip = buf.getvalue()
+                  # Download pre-built UI from GitHub release
+                  ui_url = 'https://github.com/amitml/cost-intelligence-agent/releases/download/v2/costop-ui.zip'
+                  resp = urllib.request.urlopen(ui_url, timeout=30)
+                  ui_zip_data = resp.read()
+                  # Inject config into main.js inside the zip
+                  config_line = f"window.COSTOP_CONFIG={{userPoolId:'{props['UserPoolId']}',clientId:'{props['ClientId']}',identityPoolId:'{props['IdentityPoolId']}',agentArn:'{props['AgentArn']}',region:'{props['Region']}',investigationsTable:'{props['StackName']}-investigations',alarmPrefix:'{props['StackName']}'}};"
+                  buf = io.BytesIO(ui_zip_data)
+                  out_buf = io.BytesIO()
+                  with zipfile.ZipFile(buf, 'r') as zin, zipfile.ZipFile(out_buf, 'w') as zout:
+                      for item in zin.namelist():
+                          data = zin.read(item)
+                          if item.endswith('.js') and b'userPoolId' in data:
+                              # Append config at end
+                              data = data + b'\n' + config_line.encode()
+                          zout.writestr(item, data)
+                  # Deploy to Amplify
                   amplify = boto3.client('amplify', region_name=props['Region'])
                   deployment = amplify.create_deployment(appId=props['AppId'], branchName='main')
-                  req = urllib.request.Request(deployment['zipUploadUrl'], data=ui_zip, method='PUT')
+                  req = urllib.request.Request(deployment['zipUploadUrl'], data=out_buf.getvalue(), method='PUT')
                   urllib.request.urlopen(req)
                   amplify.start_deployment(appId=props['AppId'], branchName='main', jobId=deployment['jobId'])
                   time.sleep(8)
