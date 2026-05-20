@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'CostOp Intelligence Agent - One-click deployment for Bedrock cost monitoring and investigation'
+Description: 'CostOp Intelligence Agent (created by amitml) - One-click deployment for Bedrock cost monitoring and investigation'
 
 Parameters:
   AdminEmail:
