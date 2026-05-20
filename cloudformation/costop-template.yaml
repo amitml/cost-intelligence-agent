@@ -31,6 +31,21 @@ Parameters:
     Default: 100
     Description: Requests per minute
 
+  TPMAlarmThreshold:
+    Type: Number
+    Default: 80
+    Description: TPM quota usage percentage
+
+  ThrottleAlarmThreshold:
+    Type: Number
+    Default: 5
+    Description: Throttled requests per minute
+
+  ErrorAlarmThreshold:
+    Type: Number
+    Default: 10
+    Description: Client errors per 5 minutes
+
   EnableTPMAlarm:
     Type: String
     Default: 'Yes'
@@ -506,7 +521,7 @@ Resources:
       Statistic: Maximum
       Period: 60
       EvaluationPeriods: 2
-      Threshold: 80
+      Threshold: !Ref TPMAlarmThreshold
       ComparisonOperator: GreaterThanThreshold
       TreatMissingData: notBreaching
       AlarmActions: [!Ref AlertTopic]
@@ -521,7 +536,7 @@ Resources:
       Statistic: Sum
       Period: 60
       EvaluationPeriods: 1
-      Threshold: 5
+      Threshold: !Ref ThrottleAlarmThreshold
       ComparisonOperator: GreaterThanThreshold
       TreatMissingData: notBreaching
       AlarmActions: [!Ref AlertTopic]
@@ -536,7 +551,7 @@ Resources:
       Statistic: Sum
       Period: 300
       EvaluationPeriods: 2
-      Threshold: 10
+      Threshold: !Ref ErrorAlarmThreshold
       ComparisonOperator: GreaterThanThreshold
       TreatMissingData: notBreaching
       AlarmActions: [!Ref AlertTopic]
