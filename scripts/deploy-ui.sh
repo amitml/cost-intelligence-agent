@@ -1,4 +1,5 @@
 #!/bin/bash
+# Created by amitml (https://github.com/amitml)
 # CostOp UI Deployment Script
 # Usage: ./deploy-ui.sh <STACK_NAME> [REGION]
 #

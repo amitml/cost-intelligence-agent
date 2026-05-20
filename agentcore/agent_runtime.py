@@ -1,3 +1,5 @@
+# CostOp Intelligence Agent - Runtime
+# Created by amitml (https://github.com/amitml)
 """
 Amazon Bedrock Agent Core Runtime - FinOps Agent
 Uses BedrockAgentCoreApp for proper authentication and Gateway integration

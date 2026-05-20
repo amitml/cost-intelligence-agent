@@ -1,3 +1,5 @@
+# CostOp Intelligence Agent
+# Created by amitml (https://github.com/amitml)
 # Multi-stage build for FinOps Agent Runtime
 FROM python:3.12-slim AS builder
 
