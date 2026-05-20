@@ -1,6 +1,6 @@
 # CostOp Intelligence Agent
 
-An AI agent that monitors your Amazon Bedrock costs in real-time, investigates spikes autonomously, and tells you exactly who caused them and how to fix it.
+A real-time monitoring and ops agent that extends the [AWS FinOps Agent](https://github.com/aws-samples/sample-finops-agent-amazon-bedrock-agentcore) with proactive cost alerting, root cause correlation, and per-agent cost tracking.
 
 Built on Amazon Bedrock AgentCore + Strands SDK + Claude Sonnet 4.5.
 
