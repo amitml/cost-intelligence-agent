@@ -36,8 +36,10 @@ def select_skill(query: str) -> str:
         # Default: if query mentions bedrock/token/rpm, use investigation
         if any(w in query_lower for w in ['bedrock', 'token', 'rpm', 'invocation', 'cloudwatch']):
             selected = 'cost-spike-investigation'
-        else:
+        elif any(w in query_lower for w in ['cost', 'spend', 'budget', 'price', 'bill', 'money', 'dollar', 'forecast', 'usage', 'how much']):
             selected = 'cost-overview'
+        else:
+            return ""  # No skill - let agent answer naturally
     else:
         selected = max(scores, key=scores.get)
     
