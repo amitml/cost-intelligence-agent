@@ -103,12 +103,12 @@ See [cloudformation/README.md](cloudformation/README.md) for all parameters.
 
 ## Cost to Run
 
-| Model | Monthly Cost | Per Investigation |
-|---|---|---|
-| Sonnet 4.5 | ~$150-180 | ~$0.25 |
-| Haiku 4.5 | ~$18-45 | ~$0.03 |
+| Model | Per Investigation |
+|---|---|
+| Sonnet 4.5 | ~$0.25 |
+| Haiku 4.5 | ~$0.03 |
 
-Plus: CloudWatch alarms ($0.50), DynamoDB (free tier), Lambda (free tier).
+Monthly cost depends on alarm frequency and investigation count. Infrastructure (alarms, DynamoDB, Lambda) is free tier or negligible.
 
 ---
 
