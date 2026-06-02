@@ -1,6 +1,6 @@
-# Bedrock Governance Agent
+# Cost Intelligence Agent
 
-An autonomous AI governance agent for Amazon Bedrock that provides **cost control**, **invocation monitoring**, **CloudWatch-driven alerting**, and **prompt engineering oversight** — all in a single deployable stack.
+> Autonomous cost governance, invocation monitoring, and CloudWatch-driven alerting for Amazon Bedrock — powered by prompt-engineered investigation workflows.
 
 Built on Amazon Bedrock AgentCore + Strands SDK + Claude Sonnet 4.6.
 
@@ -55,19 +55,19 @@ Bedrock workload runs → Agent monitors continuously →
 Alerts you with: WHO triggered it, WHAT happened, HOW MUCH it cost, and HOW TO FIX
 ```
 
-### Governance Pillars
+### Core Capabilities
 
-| Pillar | What It Covers |
+| Capability | Description |
 |---|---|
-| 💰 **Cost Control** | Per-model and per-agent spend tracking, budget enforcement, anomaly detection |
+| 💰 **Cost Governance** | Per-model and per-agent spend tracking, budget enforcement, anomaly detection |
 | 📊 **Invocation Monitoring** | Token usage patterns, throttling events, model call frequency analysis |
 | 🚨 **CloudWatch Alerting** | 5 preconfigured alarms with autonomous investigation on trigger |
-| 🧠 **Prompt Engineering Oversight** | Input/output token ratios, prompt efficiency scoring, model selection guidance |
+| 🧠 **Prompt-Engineered Workflows** | Structured hypothesis-driven investigation, evidence ledger, and adaptive response generation |
 
-### Key Capabilities
+### Key Features
 
 - **Real-time detection** — CloudWatch alarms monitor Bedrock metrics continuously
-- **Autonomous investigation** — hypothesis-driven root cause analysis with evidence ledger
+- **Autonomous investigation** — prompt-engineered reasoning chains with evidence ledger
 - **Structured reports** — findings tiles, timeline, action buttons
 - **Pattern memory** — learns from past incidents, recognizes repeats
 - **Proactive alerts** — email + Slack with full investigation (not just "alarm fired")
@@ -82,7 +82,7 @@ Web UI (Amplify) → Cognito Auth → AgentCore Runtime (11 tools)
                                         ↓
                     CloudWatch + CloudTrail + Cost Explorer + Invocation Logs
                                         ↓
-                    Governance analysis → Email + Slack + DynamoDB
+                    Prompt-engineered investigation → Email + Slack + DynamoDB
 
 Proactive: Alarm → EventBridge → Lambda → Agent → Email/Slack
 ```
