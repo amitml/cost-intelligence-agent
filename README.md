@@ -1,6 +1,6 @@
-# CostOp Intelligence Agent
+# Bedrock Governance Agent
 
-A real-time monitoring and ops agent that extends the [AWS FinOps Agent](https://github.com/aws-samples/sample-finops-agent-amazon-bedrock-agentcore) with proactive cost alerting, root cause correlation, and per-agent cost tracking.
+An autonomous AI governance agent for Amazon Bedrock that provides **cost control**, **invocation monitoring**, **CloudWatch-driven alerting**, and **prompt engineering oversight** — all in a single deployable stack.
 
 Built on Amazon Bedrock AgentCore + Strands SDK + Claude Sonnet 4.6.
 
@@ -51,12 +51,23 @@ aws cloudformation describe-stacks --stack-name CostOp --region us-east-1 \
 ## What It Does
 
 ```
-CloudWatch Alarm fires → Agent investigates automatically → 
-Sends you an email with: WHO caused it, WHY, HOW MUCH, and HOW TO FIX
+Bedrock workload runs → Agent monitors continuously →
+Alerts you with: WHO triggered it, WHAT happened, HOW MUCH it cost, and HOW TO FIX
 ```
 
-- **Real-time detection** — 5 CloudWatch alarms monitor Bedrock metrics
-- **Autonomous investigation** — hypothesis-driven with evidence ledger
+### Governance Pillars
+
+| Pillar | What It Covers |
+|---|---|
+| 💰 **Cost Control** | Per-model and per-agent spend tracking, budget enforcement, anomaly detection |
+| 📊 **Invocation Monitoring** | Token usage patterns, throttling events, model call frequency analysis |
+| 🚨 **CloudWatch Alerting** | 5 preconfigured alarms with autonomous investigation on trigger |
+| 🧠 **Prompt Engineering Oversight** | Input/output token ratios, prompt efficiency scoring, model selection guidance |
+
+### Key Capabilities
+
+- **Real-time detection** — CloudWatch alarms monitor Bedrock metrics continuously
+- **Autonomous investigation** — hypothesis-driven root cause analysis with evidence ledger
 - **Structured reports** — findings tiles, timeline, action buttons
 - **Pattern memory** — learns from past incidents, recognizes repeats
 - **Proactive alerts** — email + Slack with full investigation (not just "alarm fired")
@@ -71,7 +82,7 @@ Web UI (Amplify) → Cognito Auth → AgentCore Runtime (11 tools)
                                         ↓
                     CloudWatch + CloudTrail + Cost Explorer + Invocation Logs
                                         ↓
-                    Structured investigation → Email + Slack + DynamoDB
+                    Governance analysis → Email + Slack + DynamoDB
 
 Proactive: Alarm → EventBridge → Lambda → Agent → Email/Slack
 ```
