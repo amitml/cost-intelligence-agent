@@ -77,6 +77,8 @@ Alerts you with: WHO triggered it, WHAT happened, HOW MUCH it cost, and HOW TO F
 
 ## Architecture
 
+![Architecture Diagram](assets/images/architecture-diagram.png)
+
 ```
 Web UI (Amplify) → Cognito Auth → AgentCore Runtime (11 tools)
                                         ↓
