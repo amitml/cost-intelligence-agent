@@ -4,6 +4,8 @@
 
 Built on Amazon Bedrock AgentCore + Strands SDK + Claude Sonnet 4.6.
 
+![UI](assets/ui.svg)
+
 ---
 
 ## 🚀 First Time Setup (5 minutes)
@@ -76,6 +78,8 @@ Alerts you with: WHO triggered it, WHAT happened, HOW MUCH it cost, and HOW TO F
 ---
 
 ## Architecture
+
+![Architecture](assets/architecture.svg)
 
 ```
 Web UI (Amplify) → Cognito Auth → AgentCore Runtime (11 tools)
