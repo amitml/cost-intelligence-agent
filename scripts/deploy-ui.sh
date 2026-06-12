@@ -66,9 +66,11 @@ sed -i.bak "s|const AGENT_ARN='[^']*'|const AGENT_ARN='$AGENT_ARN'|g" main.js 2>
 sed -i '' "s|const AGENT_ARN='[^']*'|const AGENT_ARN='$AGENT_ARN'|g" main.js
 sed -i.bak "s|const REGION='[^']*'|const REGION='$REGION'|g" main.js 2>/dev/null || \
 sed -i '' "s|const REGION='[^']*'|const REGION='$REGION'|g" main.js
-# Set investigations table name and alarm prefix
+# Set investigations table name, alarm prefix, and account ID
+ACCOUNT_ID=$(aws sts get-caller-identity --query 'Account' --output text)
 echo "window.INVESTIGATIONS_TABLE='${STACK_NAME}-investigations';" >> main.js
 echo "window.ALARM_PREFIX='${STACK_NAME}';" >> main.js
+echo "window.COSTOP_CONFIG=window.COSTOP_CONFIG||{};window.COSTOP_CONFIG.accountId='${ACCOUNT_ID}';" >> main.js
 rm -f main.js.bak
 
 # Build

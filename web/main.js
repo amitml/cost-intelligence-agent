@@ -3,9 +3,9 @@ import { signIn, signOut, fetchAuthSession } from 'aws-amplify/auth';
 import { SignatureV4 } from '@smithy/signature-v4';
 import { Sha256 } from '@aws-crypto/sha256-js';
 
-Amplify.configure({Auth:{Cognito:{userPoolId:window.COSTOP_CONFIG?.userPoolId||'us-east-1_inqPSaxiV',userPoolClientId:window.COSTOP_CONFIG?.clientId||'5ks5gp9m72m3iib0764c7e5klc',identityPoolId:window.COSTOP_CONFIG?.identityPoolId||'us-east-1:d6f233c5-38d8-4f09-bdf4-95735289459e'}}});
+Amplify.configure({Auth:{Cognito:{userPoolId:window.COSTOP_CONFIG?.userPoolId||'',userPoolClientId:window.COSTOP_CONFIG?.clientId||'',identityPoolId:window.COSTOP_CONFIG?.identityPoolId||''}}});
 
-const AGENT_ARN=window.COSTOP_CONFIG?.agentArn||'arn:aws:bedrock-agentcore:us-east-1:<ACCOUNT_ID>:runtime/costop_runtime-thVaesENyr';
+const AGENT_ARN=window.COSTOP_CONFIG?.agentArn||'';
 const REGION=window.COSTOP_CONFIG?.region||'us-east-1';
 let sessionId='s-'+Date.now();
 
@@ -475,7 +475,7 @@ async function loadAlerts(){
 async function loadBudgetAlerts(session){
   try{
     const signer=new SignatureV4({service:'budgets',region:REGION,credentials:session.credentials,sha256:Sha256});
-    const body=JSON.stringify({AccountId:'<ACCOUNT_ID>',MaxResults:20});
+    const body=JSON.stringify({AccountId:window.COSTOP_CONFIG?.accountId||session.identityId?.split(':')[0]||'',MaxResults:20});
     const signed=await signer.sign({method:'POST',hostname:`budgets.amazonaws.com`,path:'/',headers:{'Content-Type':'application/x-amz-json-1.1','X-Amz-Target':'AWSBudgetServiceGateway.DescribeBudgets',host:'budgets.amazonaws.com'},body});
     const res=await fetch('https://budgets.amazonaws.com/',{method:'POST',headers:{...signed.headers,'X-Amz-Target':'AWSBudgetServiceGateway.DescribeBudgets','Content-Type':'application/x-amz-json-1.1'},body});
     const data=await res.json();

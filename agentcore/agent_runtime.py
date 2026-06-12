@@ -99,6 +99,10 @@ local_tools = [
 ]
 
 # Global MCP client to keep connection alive
+# OPTIONAL: MCP Gateway integration (dormant by default)
+# To enable: set GATEWAY_ARN env var on the AgentCore Runtime to your Gateway ARN.
+# This adds billingMcp + pricingMcp tools from the FinOps Agent Gateway.
+# See: github.com/aws-samples/sample-finops-agent-amazon-bedrock-agentcore
 mcp_client = None
 agent = None
 mcp_tools = []  # Store tools globally
@@ -127,8 +131,7 @@ When investigating, use these:
 7. get_resource_info — agent config, Lambda config, stacks, EventBridge, IAM, tags, SNS, ECS
 
 ## CONSTRAINTS
-- billingMcp tools have 12-hour delay. Use CloudWatch for real-time.
-- pricingMcp tools for pricing lookups.
+- Cost Explorer data (get_cost_data) has 12-24 hour delay. Use CloudWatch for real-time.
 - Destructive actions need user confirmation first.
 - Never suggest manual CLI commands — use your tools.
 - If a tool returned data, that data exists. Don't claim unavailable later.
@@ -146,15 +149,16 @@ When investigating, use these:
 If your response has data, metrics, or findings — use ```json tiles. Plain text for simple answers. You decide based on content. No emojis in responses.
 Before writing blind_spots, verify you tried 2+ relevant tools first."""
         
-        # If no Gateway, just use local tools
+        # If no Gateway, just use local tools (default mode)
         if not gateway_endpoint:
-            logger.info("No Gateway configured — using local tools only")
+            logger.info("No Gateway configured — using local tools only (default)")
+            logger.info("  To enable MCP Gateway: set GATEWAY_ARN env var on the AgentCore Runtime")
             agent = Agent(
                 model=model,
                 tools=local_tools,
                 system_prompt=system_prompt_template
             )
-            logger.info(f"✅ Agent created with {len(local_tools)} local tools (no Gateway)")
+            logger.info(f"✅ Agent created with {len(local_tools)} local tools")
             return
 
         # Connect to Gateway for MCP tools

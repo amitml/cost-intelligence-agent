@@ -122,6 +122,18 @@ See [cloudformation/README.md](cloudformation/README.md) for all parameters.
 
 ---
 
+## Optional: MCP Gateway (Advanced)
+
+By default, CostOp uses 11 local tools (direct boto3 calls). To add the AWS FinOps Agent's billing + pricing MCP servers:
+
+1. Deploy the [FinOps Agent Gateway stack](https://github.com/aws-samples/sample-finops-agent-amazon-bedrock-agentcore)
+2. Set `GATEWAY_ARN` environment variable on the AgentCore Runtime to your Gateway ARN
+3. The agent will automatically discover and use the additional MCP tools
+
+This adds Cost Optimization Hub, Compute Optimizer, and extended pricing lookup capabilities.
+
+---
+
 ## Cost to Run
 
 | Model | Per Investigation |
