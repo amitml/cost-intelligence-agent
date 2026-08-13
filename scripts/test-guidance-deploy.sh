@@ -15,8 +15,9 @@ set -e
 # ============================================
 # CONFIGURATION
 # ============================================
-export AWS_REGION="us-east-1"
-EMAIL_ADDRESS="test@example.com"
+export AWS_REGION="${AWS_REGION:-us-east-1}"
+# Provide the deploy/notification email via the ADMIN_EMAIL env var.
+EMAIL_ADDRESS="${ADMIN_EMAIL:-test@example.com}"
 TIMESTAMP=$(date +%s)
 
 # ============================================

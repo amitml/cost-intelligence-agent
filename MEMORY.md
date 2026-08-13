@@ -9,7 +9,7 @@
 
 ## Current State
 
-- **Stack `CostOp` deleted** from account <ACCOUNT_ID> (us-east-1)
+- **Stack `CostOp` deleted** from account `<ACCOUNT_ID>` (us-east-1)
 - **GitHub repo** is the single source of truth — all old v1 files (CDK, extensions, MCP servers, old frontend) removed
 - **GitHub Release v2** has `costop-ui.zip` attached
 - **ECR Public image** synced and working
