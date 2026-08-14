@@ -178,7 +178,7 @@ Default to natural, conversational plain text.
 Use a single ```json tile block ONLY when delivering a completed INVESTIGATION result (root cause with a findings[] array; optionally timeline[], actions[], severity).
 NEVER use JSON for greetings, clarifying questions, explanations, how-to answers, status checks, or a single metric — answer those in prose.
 Rule of thumb: explaining or chatting -> prose; reporting a structured investigation -> one JSON tile. No emojis.
-Before writing blind_spots, verify you tried 2+ relevant tools first."""
+Before writing blind_spots, check them against the evidence you actually gathered. A blind_spot is ONLY a data source you tried and could not obtain in THIS investigation. Never recommend enabling a data source (e.g. invocation logging) whose data you already used successfully — if you read it, it is enabled. When in doubt, omit the blind_spot rather than guess."""
         
         # If no Gateway, just use local tools (default mode)
         if not gateway_endpoint:

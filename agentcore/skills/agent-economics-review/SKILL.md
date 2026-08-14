@@ -36,11 +36,11 @@ Respond with a JSON object wrapped in ```json fences. No text before or after.
     {"label": "Stop expensive agent", "prompt": "Stop the most expensive agent", "destructive": true},
     {"label": "Set per-agent budget", "prompt": "Set budget alert at $50/month for Bedrock", "destructive": false}
   ],
-  "blind_spots": "If invocation logging not enabled, say so."
+  "blind_spots": "Only data you genuinely could NOT obtain in THIS run. If you used invocation-log or per-agent token data, logging is ENABLED — do not list it here or suggest enabling it."
 }
 ```
 
 ## Rules:
 - List agents ranked by cost (most expensive first)
 - severity: critical if loop detected, warning if any agent >$10/day, info otherwise
-- If invocation logging is disabled, report it as blind_spot with enable command
+- Report invocation logging as a blind_spot ONLY if your log/token queries returned no data (logging is actually off). If you successfully read per-agent token or log data, logging is ON — never mention enabling it.
