@@ -86,7 +86,7 @@ window.doLogin=async()=>{
       document.getElementById('newPassForm').style.display='block';
       return;
     }
-    document.getElementById('loginOverlay').style.display='none';loadAlerts();startAutoRefresh();loadCostWidget()}
+    document.getElementById('loginOverlay').style.display='none';loadAlerts();startAutoRefresh();loadCostWidget();loadModelCatalog()}
   catch(e){err.textContent=e.message;err.style.display='block'}
 };
 
@@ -98,7 +98,7 @@ window.doNewPassword=async()=>{
   try{
     const {confirmSignIn}=await import('aws-amplify/auth');
     await confirmSignIn({challengeResponse:newPass});
-    document.getElementById('loginOverlay').style.display='none';loadAlerts();startAutoRefresh();loadCostWidget();
+    document.getElementById('loginOverlay').style.display='none';loadAlerts();startAutoRefresh();loadCostWidget();loadModelCatalog();
   }catch(e){err.textContent=e.message;err.style.display='block'}
 };
 
@@ -187,6 +187,27 @@ function hideProgress(){
   }
 }
 
+async function loadModelCatalog(){
+  try{
+    const session=await fetchAuthSession();
+    const endpoint=`https://bedrock-agentcore.${REGION}.amazonaws.com`;
+    const path=`/runtimes/${encodeURIComponent(AGENT_ARN)}/invocations`;
+    const body=JSON.stringify({list_models:true});
+    const signer=new SignatureV4({service:'bedrock-agentcore',region:REGION,credentials:session.credentials,sha256:Sha256});
+    const signed=await signer.sign({method:'POST',hostname:`bedrock-agentcore.${REGION}.amazonaws.com`,path,headers:{'Content-Type':'application/json',host:`bedrock-agentcore.${REGION}.amazonaws.com`},body});
+    const res=await fetch(endpoint+path,{method:'POST',headers:signed.headers,body});
+    const data=await res.json();
+    const models=data.models||{};
+    const sel=document.getElementById('modelSelect');
+    if(sel&&Object.keys(models).length){
+      const cur=sel.value;
+      const labelFor=(id)=>{const m=String(id).match(/claude-([a-z]+)-(\d+)(?:-(\d+))?/i);return m?('Claude '+m[1][0].toUpperCase()+m[1].slice(1)+' '+m[2]+(m[3]?'.'+m[3]:'')):id;};
+      sel.innerHTML=Object.entries(models).map(([k,id])=>`<option value="${k}" title="${id}">${labelFor(id)}</option>`).join('');
+      if([...sel.options].some(o=>o.value===cur))sel.value=cur;
+    }
+  }catch(e){/* keep static fallback options */}
+}
+
 async function callAgent(prompt){
   document.getElementById('btn').disabled=true;
   document.getElementById('stopBtn').classList.add('active');
@@ -205,7 +226,7 @@ async function callAgent(prompt){
     const signed=await signer.sign({method:'POST',hostname:`bedrock-agentcore.${REGION}.amazonaws.com`,path,headers:{'Content-Type':'application/json',host:`bedrock-agentcore.${REGION}.amazonaws.com`},body});
     const res=await fetch(endpoint+path,{method:'POST',headers:signed.headers,body,signal:abortController.signal});
     const data=await res.json();
-    addMsg(data.result||data.response||JSON.stringify(data),'agent');
+    addMsg(data.result||data.response||JSON.stringify(data),'agent',data.model_used);
   }catch(e){if(e.name!=='AbortError')addMsg('Error: '+e.message,'agent')}
   hideProgress();
   document.getElementById('btn').disabled=false;
@@ -584,25 +605,27 @@ window.executeAction=async(prompt)=>{
     const res=await fetch(endpoint+path,{method:'POST',headers:signed.headers,body});
     const data=await res.json();
     const text=data.result||data.response||JSON.stringify(data);
+    const mtag=data.model_used?`<div style="font-size:10px;color:var(--text-faint);margin-top:8px;font-family:'JetBrains Mono',monospace">⚙ ${escHtml(data.model_used)}</div>`:'';
     const structured=parseStructuredResponse(text);
     if(structured&&structured.summary){
-      resultDiv.innerHTML=`<div class="bubble"><button class="copy-btn" onclick="copyResponse(this)" title="Copy">⎘</button>${renderStructured(structured)}</div>`;
+      resultDiv.innerHTML=`<div class="bubble"><button class="copy-btn" onclick="copyResponse(this)" title="Copy">⎘</button>${renderStructured(structured)}${mtag}</div>`;
     }else{
-      resultDiv.innerHTML=`<div class="bubble"><button class="copy-btn" onclick="copyResponse(this)" title="Copy">⎘</button><div class="raw-response">${renderMarkdown(text)}</div></div>`;
+      resultDiv.innerHTML=`<div class="bubble"><button class="copy-btn" onclick="copyResponse(this)" title="Copy">⎘</button><div class="raw-response">${renderMarkdown(text)}</div>${mtag}</div>`;
     }
   }catch(e){resultDiv.innerHTML=`<div class="bubble"><div class="raw-response" style="color:#EF4444">❌ ${e.message}</div></div>`}
   area.scrollTop=area.scrollHeight;
 };
 
-function addMsg(text,role){
+function addMsg(text,role,modelUsed){
   const area=document.getElementById('chatArea');
   const div=document.createElement('div');div.className='msg '+role;
+  const mtag=modelUsed?`<div style="font-size:10px;color:var(--text-faint);margin-top:8px;font-family:'JetBrains Mono',monospace">⚙ ${escHtml(modelUsed)}</div>`:'';
   if(role==='agent'){
     const structured=parseStructuredResponse(text);
     if(structured&&structured.summary){
-      div.innerHTML=`<div class="bubble">${renderStructured(structured)}<button class="copy-btn" onclick="copyResponse(this)" title="Copy">⎘</button></div>`;
+      div.innerHTML=`<div class="bubble">${renderStructured(structured)}${mtag}<button class="copy-btn" onclick="copyResponse(this)" title="Copy">⎘</button></div>`;
     }else{
-      div.innerHTML=`<div class="bubble"><div class="raw-response">${renderMarkdown(text)}</div><button class="copy-btn" onclick="copyResponse(this)" title="Copy">⎘</button></div>`;
+      div.innerHTML=`<div class="bubble"><div class="raw-response">${renderMarkdown(text)}</div>${mtag}<button class="copy-btn" onclick="copyResponse(this)" title="Copy">⎘</button></div>`;
     }
   }else{
     div.innerHTML=`<div class="bubble">${escHtml(text)}</div>`;

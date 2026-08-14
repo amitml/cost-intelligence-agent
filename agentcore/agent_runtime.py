@@ -63,6 +63,34 @@ model = BedrockModel(
     max_tokens=int(os.environ.get('MAX_TOKENS', '12000'))
 )
 
+# Model catalog comes from the MODEL_CATALOG env var (injected by CloudFormation) — NOT hardcoded.
+# Add/point to new models by updating the stack parameter (in-place runtime update, no image rebuild).
+# Falls back to a safe default if the env var is unset or invalid, so behavior can't regress.
+import json as _json_cfg
+_DEFAULT_CATALOG = {"sonnet": MODEL_ID, "haiku": "us.anthropic.claude-haiku-4-5-20251001-v1:0"}
+try:
+    _MODEL_CATALOG = _json_cfg.loads(os.environ.get("MODEL_CATALOG", "").strip() or "{}") or _DEFAULT_CATALOG
+except Exception as _e:
+    logger.warning(f"Invalid MODEL_CATALOG env, using default: {_e}")
+    _MODEL_CATALOG = _DEFAULT_CATALOG
+_model_cache = {MODEL_ID: model}
+
+def resolve_model(choice):
+    """Resolve a UI choice (a catalog key like 'sonnet'/'haiku', or a raw model/inference-profile id)
+    to a cached BedrockModel. Falls back to the deployed default on anything unexpected — cannot regress."""
+    key = str(choice or "").strip()
+    model_id = _MODEL_CATALOG.get(key.lower()) or (key if ("." in key or ":" in key) else MODEL_ID)
+    if model_id not in _model_cache:
+        try:
+            _model_cache[model_id] = BedrockModel(
+                model_id=model_id, region_name=AWS_REGION,
+                max_tokens=int(os.environ.get('MAX_TOKENS', '12000'))
+            )
+        except Exception as _e:
+            logger.warning(f"Could not init model '{model_id}', using default {MODEL_ID}: {_e}")
+            return model, MODEL_ID
+    return _model_cache[model_id], model_id
+
 # Get AWS credentials for SigV4 signing
 session = boto3.Session()
 credentials = session.get_credentials()
@@ -145,8 +173,11 @@ When investigating, use these:
 5. Explain root cause + recommend action
 6. Save pattern (manage_patterns('save')) if new
 
-## OUTPUT
-If your response has data, metrics, or findings — use ```json tiles. Plain text for simple answers. You decide based on content. No emojis in responses.
+## OUTPUT FORMAT
+Default to natural, conversational plain text.
+Use a single ```json tile block ONLY when delivering a completed INVESTIGATION result (root cause with a findings[] array; optionally timeline[], actions[], severity).
+NEVER use JSON for greetings, clarifying questions, explanations, how-to answers, status checks, or a single metric — answer those in prose.
+Rule of thumb: explaining or chatting -> prose; reporting a structured investigation -> one JSON tile. No emojis.
 Before writing blind_spots, verify you tried 2+ relevant tools first."""
         
         # If no Gateway, just use local tools (default mode)
@@ -204,9 +235,13 @@ def invoke(payload):
     """
     global agent
 
+    if payload.get("list_models"):
+        return {"models": _MODEL_CATALOG, "default": MODEL_ID}
+
     user_message = payload.get("prompt", "")
     session_id = payload.get("sessionId", "default_session")
     user_id = payload.get("userId", "default_user")
+    req_model, req_model_id = resolve_model(payload.get("model"))
 
     if not user_message:
         logger.error("No prompt provided in payload")
@@ -248,7 +283,7 @@ def invoke(payload):
 
             # Create agent with session manager (memory handled automatically)
             agent_with_memory = Agent(
-                model=model,
+                model=req_model,
                 tools=local_tools,  # Use globally stored tools + local tools
                 system_prompt=request_prompt,  # Skill-enhanced prompt
                 session_manager=session_manager  # This handles memory automatically!
@@ -258,10 +293,10 @@ def invoke(payload):
 
         except Exception as e:
             logger.warning(f"⚠️ Could not configure memory, using agent without memory: {e}")
-            agent_with_memory = Agent(model=model, tools=local_tools, system_prompt=request_prompt)
+            agent_with_memory = Agent(model=req_model, tools=local_tools, system_prompt=request_prompt)
     else:
         logger.info("ℹ️ Memory not configured, using agent without memory")
-        agent_with_memory = Agent(model=model, tools=local_tools, system_prompt=request_prompt)
+        agent_with_memory = Agent(model=req_model, tools=local_tools, system_prompt=request_prompt)
 
     # Invoke agent - memory is handled automatically by session_manager
     try:
@@ -313,7 +348,8 @@ def invoke(payload):
         response = {
             "result": final_message,
             "sessionId": session_id,
-            "userId": user_id
+            "userId": user_id,
+            "model_used": req_model_id
         }
 
         return response
@@ -383,7 +419,7 @@ async def websocket_handler(websocket, context):
 
 REMINDER: If your response contains findings, metrics, or comparisons — respond with structured JSON. Always use tiles for data.
 """
-        selected_model = haiku_model if model_choice == "haiku" else model
+        selected_model, _ = resolve_model(model_choice)
         
         # Send status
         await websocket.send_json({"type": "status", "message": "Starting investigation..."})
