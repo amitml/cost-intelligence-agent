@@ -125,7 +125,7 @@ Out of the box this runs in a **read-only "demo" posture**. The agent can invest
 
 **Blocked by IAM → AccessDenied:** stop/throttle or reconfigure any Lambda or resource, modify the agent/runtime, change CloudWatch alarms, **any IAM change**, and any **delete / terminate / destroy**.
 
-So in demo mode the tool **cannot make changes to your account** — it only reads and analyzes. If you want it to actually perform remediation (e.g., throttle a runaway Lambda), you must **grant the matching permissions on the runtime role (`<StackName>-RuntimeRole`) yourself**, per your own requirements and review. The capability is present; the permission is intentionally withheld.
+So in demo mode the tool **only reads and analyzes — it does not modify, stop, reconfigure, or delete anything in your account.** Any change is yours to make with your own tools and judgment. This project performs no changes to your resources, is provided strictly as-is, and carries no liability for how it is used.
 
 ---
 
@@ -197,13 +197,10 @@ This adds Cost Optimization Hub, Compute Optimizer, and extended pricing lookup 
 
 ## Cost to Run
 
-| Model | Per Investigation |
-|---|---|
-| Sonnet 4.6 | ~$0.25 |
-| Sonnet 4.5 | ~$0.25 |
-| Haiku 4.5 | ~$0.03 |
+Costs depend entirely on your usage — primarily Amazon Bedrock model invocations and Amazon Bedrock AgentCore Runtime, plus supporting services (CloudWatch, DynamoDB, Amplify, Lambda). Charges vary by model, region, and volume. Estimate your costs using the official AWS pricing resources:
 
-Monthly cost depends on alarm frequency and investigation count. Infrastructure (alarms, DynamoDB, Lambda) is free tier or negligible.
+- [Amazon Bedrock pricing](https://aws.amazon.com/bedrock/pricing/)
+- [AWS Pricing Calculator](https://calculator.aws/)
 
 ---
 
