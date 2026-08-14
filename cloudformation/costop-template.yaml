@@ -717,6 +717,7 @@ Resources:
       Handler: index.handler
       Timeout: 120
       MemorySize: 256
+      ReservedConcurrentExecutions: 2   # fail-safe: cap concurrent investigations (no fleet explosion)
       Role: !GetAtt BridgeLambdaRole.Arn
       Environment:
         Variables:
