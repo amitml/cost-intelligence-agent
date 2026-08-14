@@ -63,7 +63,7 @@ Alerts you with: WHO triggered it, WHAT happened, HOW MUCH it cost, and HOW TO F
 
 | Capability | Description |
 |---|---|
-| 💰 **Cost Governance** | Per-model and per-agent spend tracking, budget enforcement, anomaly detection |
+| 💰 **Cost Governance** | Per-model and per-agent spend tracking, budget alerts, anomaly detection |
 | 📊 **Invocation Monitoring** | Token usage patterns, throttling events, model call frequency analysis |
 | 🚨 **CloudWatch Alerting** | 5 preconfigured alarms with autonomous investigation on trigger |
 | 🧠 **Prompt-Engineered Workflows** | Structured hypothesis-driven investigation, evidence ledger, and adaptive response generation |
@@ -119,7 +119,7 @@ Roll out more widely only after verifying alerts, investigations, and model sele
 
 ## Permissions & Demo Mode (read-only by default)
 
-Out of the box this runs in a **read-only "demo" posture**. The agent can investigate, analyze root cause, and *recommend* actions — the action tiles show what it *could* do — but its IAM role carries an **explicit Deny** on anything that modifies your resources. Preventive/remediation actions therefore fail with **AccessDenied** instead of changing anything.
+Out of the box this runs in a **read-only "demo" posture**. The agent investigates, analyzes root cause, and suggests next steps, but its IAM role carries an **explicit Deny** on anything that modifies your resources — so any attempt to change, stop, reconfigure, or delete a resource fails with **AccessDenied** and nothing is modified.
 
 **Allowed (analyze + the agent's own state):** read/describe across CloudWatch, CloudTrail, Cost Explorer, Config, Lambda, ECS, RDS, etc.; write to its *own* DynamoDB tables (pattern/investigation memory) and SNS alert topic; create a budget; request a quota increase; open a support case; run model inference.
 
