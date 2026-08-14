@@ -4,7 +4,7 @@
 
 Built on Amazon Bedrock AgentCore + Strands SDK + Claude Sonnet 4.6.
 
-> ⚠️ **Important:** Deploy and validate in a **non-production account first**. This project is provided **as-is** (see [LICENSE](LICENSE)) with no warranties and no liability — test before any production use.
+> ⚠️ **Important:** Deploy and validate in a **separate test/sandbox account first**. This project is provided **as-is** (see [LICENSE](LICENSE)) with no warranties and no liability — test it thoroughly before relying on it.
 
 ![UI](assets/ui.svg)
 
@@ -93,27 +93,27 @@ Proactive: Alarm → EventBridge → Lambda → Agent → Email/Slack
 
 ---
 
-## Deploy in Non-Prod First
+## Deploy in a Test Account First
 
-Validate in a **non-production account** before any production use:
+Validate in a **separate test/sandbox account** first:
 
 ```bash
 aws cloudformation create-stack \
-  --stack-name CostOp-nonprod \
+  --stack-name CostOp-test \
   --template-body file://costop-template.yaml \
   --parameters \
     ParameterKey=AdminEmail,ParameterValue=you@company.com \
-    ParameterKey=AgentName,ParameterValue=costopnonprod \
+    ParameterKey=AgentName,ParameterValue=costoptest \
     ParameterKey=MonthlyBudgetLimit,ParameterValue=20 \
   --capabilities CAPABILITY_NAMED_IAM \
   --region us-east-1
 ```
 
-- Use a distinct **`AgentName`** (e.g. `costopnonprod`) so the AgentCore runtime/memory names don't collide with a prod instance in the same account + region.
+- Use a distinct **`AgentName`** (e.g. `costoptest`) so the AgentCore runtime/memory names don't collide with another instance in the same account + region.
 - Keep a low **`MonthlyBudgetLimit`** while testing.
 - Tear down with the [Delete Everything](#delete-everything) steps when done.
 
-Only promote to production after verifying alerts, investigations, and model selection behave as expected.
+Roll out more widely only after verifying alerts, investigations, and model selection behave as expected.
 
 ---
 
@@ -125,7 +125,7 @@ Out of the box this runs in a **read-only "demo" posture**. The agent can invest
 
 **Blocked by IAM → AccessDenied:** stop/throttle or reconfigure any Lambda or resource, modify the agent/runtime, change CloudWatch alarms, **any IAM change**, and any **delete / terminate / destroy**.
 
-So in demo mode the tool **cannot make changes to your account** — it's safe to point at production for analysis. If you want it to actually perform remediation (e.g., throttle a runaway Lambda), you must **grant the matching permissions on the runtime role (`<StackName>-RuntimeRole`) yourself**, per your own requirements and review. The capability is present; the permission is intentionally withheld.
+So in demo mode the tool **cannot make changes to your account** — it only reads and analyzes. If you want it to actually perform remediation (e.g., throttle a runaway Lambda), you must **grant the matching permissions on the runtime role (`<StackName>-RuntimeRole`) yourself**, per your own requirements and review. The capability is present; the permission is intentionally withheld.
 
 ---
 
