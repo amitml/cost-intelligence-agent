@@ -8,10 +8,10 @@ description: Provide a summary of current AWS costs, budget status, and trends.
 Use this skill for general cost questions.
 
 ## Steps:
-1. `get_cost_and_usage(days=7)` — this week's spend by service
-2. `get_budgets()` — budget status
-3. `get_alarm_status()` — any active alarms
-4. `get_cost_forecast()` — projected month-end
+1. `get_cost_data('usage', days=7)` — this week's spend by service
+2. `get_cost_data('budgets')` — budget status
+3. `get_monitoring_data('alarms')` — any active alarms
+4. `get_cost_data('forecast')` — projected month-end
 
 ## Output format
 

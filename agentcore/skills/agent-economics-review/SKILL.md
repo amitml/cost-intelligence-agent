@@ -6,10 +6,10 @@ description: Analyze per-Bedrock-agent costs, identify expensive agents, detect 
 # Agent Economics Review
 
 ## Steps:
-1. `get_agent_costs(hours=24)` — per-agent token usage
-2. `detect_agent_loops(minutes=30)` — abnormal patterns
-3. `get_metric_history(namespace='AWS/Bedrock', metric_name='Invocations', hours=24)` — trend
-4. `get_cost_and_usage(days=2, service='Amazon Bedrock')` — dollar context
+1. `detect_issues('agent_costs', hours=24)` — per-agent token usage and cost
+2. `detect_issues('loops')` — abnormal / runaway patterns
+3. `get_monitoring_data('metric', 'AWS/Bedrock/Invocations', hours=24)` — trend
+4. `get_cost_data('usage', days=2, service='Amazon Bedrock')` — dollar context
 
 ## Output format
 

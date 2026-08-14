@@ -117,6 +117,18 @@ Only promote to production after verifying alerts, investigations, and model sel
 
 ---
 
+## Permissions & Demo Mode (read-only by default)
+
+Out of the box this runs in a **read-only "demo" posture**. The agent can investigate, analyze root cause, and *recommend* actions — the action tiles show what it *could* do — but its IAM role carries an **explicit Deny** on anything that modifies your resources. Preventive/remediation actions therefore fail with **AccessDenied** instead of changing anything.
+
+**Allowed (analyze + the agent's own state):** read/describe across CloudWatch, CloudTrail, Cost Explorer, Config, Lambda, ECS, RDS, etc.; write to its *own* DynamoDB tables (pattern/investigation memory) and SNS alert topic; create a budget; request a quota increase; open a support case; run model inference.
+
+**Blocked by IAM → AccessDenied:** stop/throttle or reconfigure any Lambda or resource, modify the agent/runtime, change CloudWatch alarms, **any IAM change**, and any **delete / terminate / destroy**.
+
+So in demo mode the tool **cannot make changes to your account** — it's safe to point at production for analysis. If you want it to actually perform remediation (e.g., throttle a runaway Lambda), you must **grant the matching permissions on the runtime role (`<StackName>-RuntimeRole`) yourself**, per your own requirements and review. The capability is present; the permission is intentionally withheld.
+
+---
+
 ## Configuration Options
 
 Deploy with custom parameters:

@@ -14,7 +14,7 @@ from strands import tool
 cw = boto3.client('cloudwatch')
 ct = boto3.client('cloudtrail')
 logs_client = boto3.client('logs')
-ce_client = boto3.client('ce')
+ce_client = boto3.client('ce', region_name='us-east-1')  # Cost Explorer only has a us-east-1 endpoint
 ddb = boto3.resource('dynamodb')
 
 # Table names from environment
@@ -22,6 +22,9 @@ PATTERNS_TABLE = os.environ.get('PATTERNS_TABLE', 'cost_patterns')
 INVESTIGATIONS_TABLE = os.environ.get('INVESTIGATIONS_TABLE', 'cost_investigations')
 TOPOLOGY_TABLE = os.environ.get('TOPOLOGY_TABLE', 'cost_topology')
 SNS_TOPIC_ARN = os.environ.get('SNS_TOPIC_ARN', '')
+# Alarm name prefix (= stack name) and Bedrock invocation log group, injected by the template.
+ALARM_PREFIX = os.environ.get('ALARM_PREFIX', '')
+LOG_GROUP = os.environ.get('INVOCATION_LOG_GROUP', '/aws/bedrock/modelinvocations')
 
 
 # ============================================================
@@ -116,8 +119,10 @@ def get_monitoring_data(query_type: str, target: str = '', hours: int = 6) -> st
         if query_type == 'alarms':
             if target:
                 resp = cw.describe_alarms(AlarmNames=[target])
+            elif ALARM_PREFIX:
+                resp = cw.describe_alarms(AlarmNamePrefix=ALARM_PREFIX, MaxRecords=50)
             else:
-                resp = cw.describe_alarms(AlarmNamePrefix='CostAgent', MaxRecords=20)
+                resp = cw.describe_alarms(MaxRecords=50)
             return json.dumps([{'name': a['AlarmName'], 'state': a['StateValue'], 'metric': f"{a['Namespace']}/{a['MetricName']}", 'threshold': a.get('Threshold'), 'dimensions': [f"{d['Name']}={d['Value']}" for d in a.get('Dimensions', [])], 'reason': a.get('StateReason', '')[:150]} for a in resp.get('MetricAlarms', [])], default=str)
         elif query_type == 'alarm_history':
             start = datetime.now(timezone.utc) - timedelta(days=7)
@@ -280,7 +285,7 @@ def check_invocation_logs(hours: int = 1, detail: str = 'summary') -> str:
     else:
         query = "fields @timestamp, modelId, input.inputTokenCount as inputTokens, output.outputTokenCount as outputTokens, identity.arn as callerArn, operation as apiOperation | sort @timestamp desc | limit 30"
     try:
-        response = logs_client.start_query(logGroupName='/aws/bedrock/modelinvocations', startTime=start, endTime=end, queryString=query)
+        response = logs_client.start_query(logGroupName=LOG_GROUP, startTime=start, endTime=end, queryString=query)
         query_id = response['queryId']
         for _ in range(30):
             result = logs_client.get_query_results(queryId=query_id)
@@ -376,7 +381,7 @@ def detect_issues(check_type: str, hours: int = 24) -> str:
             start = int((datetime.now(timezone.utc) - timedelta(minutes=30)).timestamp())
             end = int(datetime.now(timezone.utc).timestamp())
             query = "fields @timestamp, modelId, input.inputTokenCount | stats count(*) as calls, sum(input.inputTokenCount) as tokens by bin(5m) as time_bucket, coalesce(requestMetadata.agentId, 'direct') as agent_id | filter calls > 50 | sort calls desc"
-            response = logs_client.start_query(logGroupName='/aws/bedrock/modelinvocations', startTime=start, endTime=end, queryString=query)
+            response = logs_client.start_query(logGroupName=LOG_GROUP, startTime=start, endTime=end, queryString=query)
             query_id = response['queryId']
             for _ in range(30):
                 result = logs_client.get_query_results(queryId=query_id)
@@ -390,7 +395,7 @@ def detect_issues(check_type: str, hours: int = 24) -> str:
             start = int((datetime.now(timezone.utc) - timedelta(hours=hours)).timestamp())
             end = int(datetime.now(timezone.utc).timestamp())
             query = "fields @timestamp, modelId, input.inputTokenCount, output.outputTokenCount | stats sum(input.inputTokenCount) as input_tokens, sum(output.outputTokenCount) as output_tokens, count(*) as invocations by coalesce(requestMetadata.agentId, 'direct-invoke') as agent_id | sort input_tokens desc"
-            response = logs_client.start_query(logGroupName='/aws/bedrock/modelinvocations', startTime=start, endTime=end, queryString=query)
+            response = logs_client.start_query(logGroupName=LOG_GROUP, startTime=start, endTime=end, queryString=query)
             query_id = response['queryId']
             for _ in range(30):
                 result = logs_client.get_query_results(queryId=query_id)

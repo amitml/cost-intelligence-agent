@@ -257,10 +257,6 @@ Resources:
                 Effect: Allow
                 Action: [servicequotas:ListServiceQuotas, servicequotas:GetServiceQuota, servicequotas:RequestServiceQuotaIncrease]
                 Resource: '*'
-              - Sid: Lambda
-                Effect: Allow
-                Action: [lambda:PutFunctionConcurrency]
-                Resource: '*'
               - Sid: STS
                 Effect: Allow
                 Action: [sts:GetCallerIdentity]
@@ -306,6 +302,64 @@ Resources:
               - Sid: AgentCore
                 Effect: Allow
                 Action: [bedrock-agentcore:CreateEvent, bedrock-agentcore:GetLastKTurns, bedrock-agentcore:GetMemory, bedrock-agentcore:ListEvents]
+                Resource: '*'
+              # Hard guardrail (read-only for customer resources): the agent may analyze, and
+              # write only to its OWN state (its DynamoDB tables, its SNS topic, memory, logs).
+              # It can create a budget, request a quota increase, open a support case, and notify.
+              # It can NEVER stop/throttle, reconfigure, or modify any resource, and NEVER touch IAM.
+              # Explicit Deny overrides all Allows above.
+              - Sid: DenyResourceModification
+                Effect: Deny
+                Action:
+                  # delete / terminate / destroy (any resource)
+                  - 'ec2:TerminateInstances'
+                  - 'ec2:Delete*'
+                  - 'rds:Delete*'
+                  - 'dynamodb:Delete*'
+                  - 's3:Delete*'
+                  - 'ecs:Delete*'
+                  - 'cloudformation:Delete*'
+                  - 'sns:DeleteTopic'
+                  - 'budgets:DeleteBudget'
+                  - 'states:DeleteStateMachine'
+                  - 'bedrock:Delete*'
+                  - 'bedrock-agentcore:Delete*'
+                  - 'ecr:Delete*'
+                  - 'ecr:BatchDeleteImage'
+                  - 'logs:Delete*'
+                  - 'kms:ScheduleKeyDeletion'
+                  # no stopping / throttling / reconfiguring customer compute
+                  - 'lambda:Update*'
+                  - 'lambda:Delete*'
+                  - 'lambda:Put*'          # includes PutFunctionConcurrency (stop/throttle)
+                  - 'lambda:Remove*'
+                  - 'lambda:Add*'
+                  - 'ec2:StopInstances'
+                  - 'ec2:Modify*'
+                  - 'ecs:Update*'
+                  - 'ecs:Stop*'
+                  - 'rds:Modify*'
+                  - 'rds:Stop*'
+                  - 'rds:Reboot*'
+                  # no modifying the agent/runtime/infra or alarms
+                  - 'bedrock-agentcore-control:Create*'
+                  - 'bedrock-agentcore-control:Update*'
+                  - 'bedrock-agentcore-control:Delete*'
+                  - 'cloudformation:Create*'
+                  - 'cloudformation:Update*'
+                  - 'cloudwatch:DeleteAlarms'
+                  - 'cloudwatch:PutMetricAlarm'
+                  - 'cloudwatch:SetAlarmState'
+                  # never touch IAM
+                  - 'iam:Create*'
+                  - 'iam:Update*'
+                  - 'iam:Put*'
+                  - 'iam:Attach*'
+                  - 'iam:Detach*'
+                  - 'iam:Add*'
+                  - 'iam:Remove*'
+                  - 'iam:Delete*'
+                  - 'iam:PassRole'
                 Resource: '*'
 
   # ============================================
@@ -491,6 +545,8 @@ Resources:
         MEMORY_ID: !GetAtt AgentMemory.MemoryId
         MODEL_ID: !If [UseCustomModel, !Ref CustomModelId, !If [UseHaiku, 'us.anthropic.claude-haiku-4-5-20251001-v1:0', !If [UseSonnet, 'us.anthropic.claude-sonnet-4-5-20250929-v1:0', 'us.anthropic.claude-sonnet-4-6']]]
         MODEL_CATALOG: !Ref ModelCatalog
+        ALARM_PREFIX: !Ref AWS::StackName
+        INVOCATION_LOG_GROUP: !If [CreateLogGroup, '/aws/bedrock/modelinvocations', !Ref InvocationLogGroup]
         AWS_REGION: !Ref AWS::Region
         SNS_TOPIC_ARN: !Ref AlertTopic
         PATTERNS_TABLE: !Ref PatternsTable
