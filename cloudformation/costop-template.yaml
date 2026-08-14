@@ -24,6 +24,11 @@ Parameters:
     AllowedPattern: '^[a-zA-Z][a-zA-Z0-9_]{0,39}$'
     Description: 'Base name for the AgentCore runtime and memory (letters, numbers, underscore only; must start with a letter). Must be unique per account+region — change it to deploy more than one instance.'
 
+  ModelCatalog:
+    Type: String
+    Default: '{"sonnet":"us.anthropic.claude-sonnet-4-6","haiku":"us.anthropic.claude-haiku-4-5-20251001-v1:0","sonnet5":"us.anthropic.claude-sonnet-5"}'
+    Description: 'JSON map of UI model choices to Bedrock model/inference-profile IDs. Add models here to expose them in the app dropdown without an image rebuild.'
+
   EnableTokenAlarm:
     Type: String
     Default: 'Yes'
@@ -485,6 +490,7 @@ Resources:
       EnvironmentVariables:
         MEMORY_ID: !GetAtt AgentMemory.MemoryId
         MODEL_ID: !If [UseCustomModel, !Ref CustomModelId, !If [UseHaiku, 'us.anthropic.claude-haiku-4-5-20251001-v1:0', !If [UseSonnet, 'us.anthropic.claude-sonnet-4-5-20250929-v1:0', 'us.anthropic.claude-sonnet-4-6']]]
+        MODEL_CATALOG: !Ref ModelCatalog
         AWS_REGION: !Ref AWS::Region
         SNS_TOPIC_ARN: !Ref AlertTopic
         PATTERNS_TABLE: !Ref PatternsTable
