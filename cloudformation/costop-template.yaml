@@ -18,6 +18,12 @@ Parameters:
     Default: ''
     Description: 'Optional: override with any Bedrock model ID. Ensure the model is enabled in your account and region.'
 
+  AgentName:
+    Type: String
+    Default: costop
+    AllowedPattern: '^[a-zA-Z][a-zA-Z0-9_]{0,39}$'
+    Description: 'Base name for the AgentCore runtime and memory (letters, numbers, underscore only; must start with a letter). Must be unique per account+region — change it to deploy more than one instance.'
+
   EnableTokenAlarm:
     Type: String
     Default: 'Yes'
@@ -456,7 +462,7 @@ Resources:
   AgentMemory:
     Type: AWS::BedrockAgentCore::Memory
     Properties:
-      Name: costop_memory
+      Name: !Sub '${AgentName}_memory'
       Description: CostOp agent conversation memory
       EventExpiryDuration: !Ref MemoryRetentionDays
       MemoryExecutionRoleArn: !GetAtt MemoryRole.Arn
@@ -468,7 +474,7 @@ Resources:
     Type: AWS::BedrockAgentCore::Runtime
     DependsOn: ImageBuildTrigger
     Properties:
-      AgentRuntimeName: costop_runtime
+      AgentRuntimeName: !Sub '${AgentName}_runtime'
       Description: CostOp Intelligence Agent
       RoleArn: !GetAtt RuntimeRole.Arn
       AgentRuntimeArtifact:
