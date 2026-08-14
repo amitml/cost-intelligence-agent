@@ -4,6 +4,8 @@
 
 Built on Amazon Bedrock AgentCore + Strands SDK + Claude Sonnet 4.6.
 
+> ⚠️ **Important:** Deploy and validate in a **non-production account first**. This project is provided **as-is** (see [LICENSE](LICENSE)) with no warranties and no liability — test before any production use.
+
 ![UI](assets/ui.svg)
 
 ---
@@ -91,6 +93,30 @@ Proactive: Alarm → EventBridge → Lambda → Agent → Email/Slack
 
 ---
 
+## Deploy in Non-Prod First
+
+Validate in a **non-production account** before any production use:
+
+```bash
+aws cloudformation create-stack \
+  --stack-name CostOp-nonprod \
+  --template-body file://costop-template.yaml \
+  --parameters \
+    ParameterKey=AdminEmail,ParameterValue=you@company.com \
+    ParameterKey=AgentName,ParameterValue=costopnonprod \
+    ParameterKey=MonthlyBudgetLimit,ParameterValue=20 \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --region us-east-1
+```
+
+- Use a distinct **`AgentName`** (e.g. `costopnonprod`) so the AgentCore runtime/memory names don't collide with a prod instance in the same account + region.
+- Keep a low **`MonthlyBudgetLimit`** while testing.
+- Tear down with the [Delete Everything](#delete-everything) steps when done.
+
+Only promote to production after verifying alerts, investigations, and model selection behave as expected.
+
+---
+
 ## Configuration Options
 
 Deploy with custom parameters:
@@ -119,6 +145,29 @@ ParameterKey=CustomModelId,ParameterValue=us.anthropic.claude-sonnet-4-20250514-
 ```
 
 See [cloudformation/README.md](cloudformation/README.md) for all parameters.
+
+---
+
+## Model Selection
+
+Choose the model per request from the in-app **dropdown** (top-right) — e.g. Sonnet 4.6, Haiku 4.5, Sonnet 5. Each answer shows the exact model that produced it.
+
+The choices come from the **`ModelCatalog`** stack parameter — a JSON map of `dropdown key → Bedrock model/inference-profile ID`. Add or repoint models **without rebuilding the image**; just update the parameter.
+
+Default:
+```json
+{"sonnet":"us.anthropic.claude-sonnet-4-6","haiku":"us.anthropic.claude-haiku-4-5-20251001-v1:0","sonnet5":"us.anthropic.claude-sonnet-5"}
+```
+
+Add a model (the new option appears in the dropdown automatically — no image rebuild, no redeploy):
+```bash
+aws cloudformation update-stack --stack-name CostOp --use-previous-template \
+  --parameters \
+    ParameterKey=ModelCatalog,ParameterValue='{"sonnet":"us.anthropic.claude-sonnet-4-6","haiku":"us.anthropic.claude-haiku-4-5-20251001-v1:0","sonnet5":"us.anthropic.claude-sonnet-5","opus":"us.anthropic.claude-opus-4-6-v1"}' \
+  --capabilities CAPABILITY_NAMED_IAM --region us-east-1
+```
+
+> Ensure any model you add is **enabled in your account/region** in the Bedrock console. `DefaultModel` / `CustomModelId` still set the model used when no explicit choice is sent.
 
 ---
 
@@ -169,6 +218,12 @@ aws cloudformation delete-stack --stack-name CostOp --region us-east-1
 
 - [Full deployment guide](cloudformation/README.md)
 - [ECR Public Image](https://gallery.ecr.aws/y3a7j1y9/amitml/costop-agent)
+
+---
+
+## License
+
+Released into the **public domain** — see [LICENSE](LICENSE). Provided **as-is**, with **no warranty and no liability** on the part of the creator or anyone associated with this project. You use it entirely at your own risk. Not affiliated with, endorsed by, or supported by AWS / Amazon. Nothing here is legal advice.
 
 ---
 
